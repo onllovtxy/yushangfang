@@ -1,7 +1,9 @@
 package com.xixikitchen.jetpack.data
 
+import com.xixikitchen.jetpack.BuildConfig
+
 object BackendConfig {
-    const val DEFAULT_BASE_URL = "http://114.132.245.245/"
+    const val DEFAULT_BASE_URL = BuildConfig.DEFAULT_BASE_URL
 
     @Volatile
     private var currentBaseUrl: String = DEFAULT_BASE_URL
@@ -20,7 +22,8 @@ object BackendConfig {
         if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
             normalized = "http://$normalized"
         }
-        return normalized.trimEnd('/') + "/"
+        normalized = normalized.trimEnd('/') + "/"
+        return normalized
     }
 
     fun resolveUrl(url: String?): String? {

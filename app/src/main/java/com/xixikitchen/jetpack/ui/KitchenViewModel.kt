@@ -31,6 +31,7 @@ data class KitchenUiState(
     val session: Session = Session(),
     val loading: Boolean = false,
     val message: String? = null,
+    val errorDialogMessage: String? = null,
     val categories: List<Category> = emptyList(),
     val activeCategoryId: Long? = null,
     val dishes: List<Dish> = emptyList(),
@@ -85,10 +86,30 @@ class KitchenViewModel @Inject constructor(
     }
 
     fun consumeMessage() = _state.update { it.copy(message = null) }
+    fun consumeErrorDialog() = _state.update { it.copy(errorDialogMessage = null) }
 
-    fun login(username: String, password: String) = runAction {
-        repo.login(username, password)
-        notify("登录成功")
+    fun login(username: String, password: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, message = null, errorDialogMessage = null) }
+
+            val trimmedUsername = username.trim()
+            val trimmedPassword = password
+            if (trimmedUsername.isBlank() || trimmedPassword.isBlank()) {
+                notifyError("请输入账号和密码")
+                _state.update { it.copy(loading = false) }
+                return@launch
+            }
+
+            runCatching {
+                repo.login(trimmedUsername, trimmedPassword)
+            }.onSuccess {
+                notify("登录成功")
+            }.onFailure { e ->
+                notifyError(resolveLoginErrorMessage(e))
+            }
+
+            _state.update { it.copy(loading = false) }
+        }
     }
 
     fun resetPassword(resetKey: String, username: String, newPassword: String) = runAction {
@@ -254,6 +275,23 @@ class KitchenViewModel @Inject constructor(
         onFailure: () -> Unit
     ) = runAction {
         try {
+            val lowerName = fileName.lowercase()
+            val allowedExtension = lowerName.endsWith(".jpg") ||
+                lowerName.endsWith(".jpeg") ||
+                lowerName.endsWith(".png") ||
+                lowerName.endsWith(".gif") ||
+                lowerName.endsWith(".webp")
+            if (!allowedExtension) {
+                throw IllegalArgumentException("仅支持 jpg、jpeg、png、gif、webp 图片")
+            }
+            if (bytes.isEmpty()) {
+                throw IllegalArgumentException("上传文件不能为空")
+            }
+            val maxSizeBytes = 5 * 1024 * 1024
+            if (bytes.size > maxSizeBytes) {
+                throw IllegalArgumentException("图片不能超过 5MB")
+            }
+
             val mimeType = when {
                 fileName.endsWith(".png", ignoreCase = true) -> "image/png"
                 fileName.endsWith(".gif", ignoreCase = true) -> "image/gif"
@@ -344,9 +382,9 @@ class KitchenViewModel @Inject constructor(
 
     private fun runAction(block: suspend () -> Unit) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, message = null) }
+            _state.update { it.copy(loading = true, message = null, errorDialogMessage = null) }
             runCatching { block() }
-                .onFailure { e -> notify(resolveErrorMessage(e)) }
+                .onFailure { e -> notifyError(resolveErrorMessage(e)) }
             _state.update { it.copy(loading = false) }
         }
     }
@@ -370,12 +408,19 @@ class KitchenViewModel @Inject constructor(
                             return "服务器错误 (${e.code()}): ${matchResult.groupValues[1]}"
                         }
                     }
-                    return "请求错误 (${e.code()}): ${bodyString.take(60)}"
+                    return if (bodyString.contains("系统内部错误，请稍后重试") && bodyString.contains("\"code\":-1")) {
+                        "登录接口异常：服务端 /api/user/password-login 返回 500。请检查后端登录实现或接口路径是否正确。"
+                    } else {
+                        "请求错误 (${e.code()}): ${bodyString.take(120)}"
+                    }
                 }
             } catch (ignored: Exception) {
                 // ignore
             }
             return "请求错误: ${e.code()}"
+        }
+        if (e is IllegalArgumentException) {
+            return e.message ?: "输入或安全校验失败"
         }
         if (e is java.net.ConnectException || e is java.net.UnknownHostException) {
             return "网络连接失败，请检查后端地址或网络设置"
@@ -386,10 +431,37 @@ class KitchenViewModel @Inject constructor(
         return e.message ?: "操作失败"
     }
 
+    private fun resolveLoginErrorMessage(e: Throwable): String {
+        if (e is retrofit2.HttpException) {
+            val bodyString = runCatching { e.response()?.errorBody()?.string() }.getOrNull().orEmpty()
+            if (bodyString.isNotBlank()) {
+                val apiResponse = runCatching {
+                    com.google.gson.Gson().fromJson(bodyString, com.xixikitchen.jetpack.data.ApiResponse::class.java)
+                }.getOrNull()
+                if (!apiResponse?.msg.isNullOrBlank()) {
+                    return apiResponse!!.msg!!
+                }
+                return "登录失败 (${e.code()}): ${bodyString.take(120)}"
+            }
+            return "登录失败: ${e.code()}"
+        }
+
+        val msg = e.message.orEmpty()
+        if (msg.contains("用户名或密码错误")) return msg
+        if (msg.contains("Connection reset", ignoreCase = true)) {
+            return "连接被服务器重置。请稍后重试，或联系我继续排查服务端。"
+        }
+        return resolveErrorMessage(e)
+    }
+
     private fun token(): String = _state.value.token
 
     private fun notify(message: String) {
         _state.update { it.copy(message = message) }
+    }
+
+    private fun notifyError(message: String) {
+        _state.update { it.copy(message = message, errorDialogMessage = message) }
     }
 
     private fun registerPushToken(authToken: String) {

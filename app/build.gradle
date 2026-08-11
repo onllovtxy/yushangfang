@@ -15,22 +15,67 @@ def jpushAppKey = project.findProperty("JPUSH_APPKEY")
     ?: localProperties.getProperty("JPUSH_APPKEY")
     ?: System.getenv("JPUSH_APPKEY")
     ?: ""
+def releaseStoreFile = project.findProperty("RELEASE_STORE_FILE")
+    ?: localProperties.getProperty("RELEASE_STORE_FILE")
+    ?: System.getenv("RELEASE_STORE_FILE")
+    ?: ""
+def releaseStorePassword = project.findProperty("RELEASE_STORE_PASSWORD")
+    ?: localProperties.getProperty("RELEASE_STORE_PASSWORD")
+    ?: System.getenv("RELEASE_STORE_PASSWORD")
+    ?: ""
+def releaseKeyAlias = project.findProperty("RELEASE_KEY_ALIAS")
+    ?: localProperties.getProperty("RELEASE_KEY_ALIAS")
+    ?: System.getenv("RELEASE_KEY_ALIAS")
+    ?: ""
+def releaseKeyPassword = project.findProperty("RELEASE_KEY_PASSWORD")
+    ?: localProperties.getProperty("RELEASE_KEY_PASSWORD")
+    ?: System.getenv("RELEASE_KEY_PASSWORD")
+    ?: ""
 
 android {
     namespace 'com.xixikitchen.jetpack'
     compileSdk 36
 
+    signingConfigs {
+        release {
+            if (releaseStoreFile) {
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     defaultConfig {
         applicationId 'com.xixikitchen.jetpack'
         minSdk 24
         targetSdk 36
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '1.1.0'
         manifestPlaceholders = [
             JPUSH_PKGNAME: applicationId,
             JPUSH_APPKEY : jpushAppKey,
             JPUSH_CHANNEL: "developer-default"
         ]
+        buildConfigField 'String', 'DEFAULT_BASE_URL', '"https://bbxy.art/"'
+    }
+
+    buildTypes {
+        debug {
+            buildConfigField 'String', 'DEFAULT_BASE_URL', '"https://bbxy.art/"'
+            buildConfigField 'boolean', 'ENABLE_HTTP_LOGGING', 'true'
+            manifestPlaceholders += [USES_CLEARTEXT_TRAFFIC: 'true']
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            buildConfigField 'String', 'DEFAULT_BASE_URL', '"https://bbxy.art/"'
+            buildConfigField 'boolean', 'ENABLE_HTTP_LOGGING', 'false'
+            manifestPlaceholders += [USES_CLEARTEXT_TRAFFIC: 'false']
+            signingConfig signingConfigs.release
+        }
     }
 
     buildFeatures {
@@ -46,6 +91,7 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+
 }
 
 dependencies {
@@ -57,10 +103,12 @@ dependencies {
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
-    implementation 'androidx.navigation:navigation-compose:2.8.4'
+    implementation 'androidx.navigation:navigation-compose:2.9.8'
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
     implementation 'androidx.core:core-ktx:1.15.0'
     implementation 'androidx.datastore:datastore-preferences:1.1.1'
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+    compileOnly 'com.google.errorprone:error_prone_annotations:2.28.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'com.squareup.retrofit2:retrofit:2.11.0'
     implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
@@ -73,4 +121,8 @@ dependencies {
     kapt 'com.google.dagger:hilt-compiler:2.52'
 
     debugImplementation 'androidx.compose.ui:ui-tooling'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'androidx.navigation:navigation-testing:2.9.8'
+    testImplementation 'androidx.test:core-ktx:1.6.1'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
 }

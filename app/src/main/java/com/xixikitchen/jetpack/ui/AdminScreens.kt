@@ -4,8 +4,11 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,6 +44,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.animation.animateColorAsState
@@ -72,27 +81,25 @@ import com.xixikitchen.jetpack.data.Dish
 import com.xixikitchen.jetpack.data.Order
 import com.xixikitchen.jetpack.data.User
 import com.xixikitchen.jetpack.data.UserEditorPayload
+import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
+import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
+import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcave
+import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
+import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
 import kotlinx.coroutines.launch
 
-// Colors matching XixiKitchenApp palette
-private val CoralPink = Color(0xFFFF5E7E)
-private val PeachSunset = Color(0xFFFF9E79)
-private val CoralDark = Color(0xFFD63B5D)
-private val OatmealPage = Color(0xFFFAF6F0)
-private val TextDark = Color(0xFF3C3333)
-private val TextMuted = Color(0xFF8C7E7E)
-
-private enum class AdminTab(val title: String) {
-    Category("分类"),
-    Dish("菜品"),
-    Announcement("公告"),
-    User("用户"),
-    Order("订单")
+private enum class AdminTab(val title: String, val caption: String) {
+    Category("分类", "菜单结构"),
+    Dish("菜品", "商品资料"),
+    Announcement("公告", "内容发布"),
+    User("用户", "账号权限"),
+    Order("订单", "交易记录")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostController) {
+    val tokens = LocalGlassTokens.current
     var tab by remember { mutableStateOf(AdminTab.Category) }
     val isSuperAdmin = state.user?.role == "super_admin"
     val currentUserId = state.user?.id
@@ -117,89 +124,90 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
         vm.loadAdminData()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = CoralPink
-                        )
-                    }
-                },
-                actions = {
-                    Button(
-                        onClick = {
-                            when (tab) {
-                                AdminTab.Category -> showNewCategory = true
-                                AdminTab.Dish -> showNewDish = true
-                                AdminTab.Announcement -> showNewAnnouncement = true
-                                AdminTab.User -> showNewUser = true
-                                AdminTab.Order -> vm.loadAdminData()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = CoralPink),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Text(
-                            text = if (tab == AdminTab.Order) "刷新" else "新增",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = OatmealPage)
+    val moduleCount = when (tab) {
+        AdminTab.Category -> state.categories.size
+        AdminTab.Dish -> state.dishes.size
+        AdminTab.Announcement -> state.announcements.size
+        AdminTab.User -> state.adminUsers.size
+        AdminTab.Order -> state.adminOrders.size
+    }
+    val primaryAction = {
+        when (tab) {
+            AdminTab.Category -> showNewCategory = true
+            AdminTab.Dish -> showNewDish = true
+            AdminTab.Announcement -> showNewAnnouncement = true
+            AdminTab.User -> showNewUser = true
+            AdminTab.Order -> vm.loadAdminData()
+        }
+    }
+
+    Scaffold(containerColor = Color.Transparent) { padding ->
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            AdminConsoleHeader(
+                tab = tab,
+                count = moduleCount,
+                isSuperAdmin = isSuperAdmin,
+                onBack = { nav.popBackStack() },
+                onPrimaryAction = primaryAction
             )
-        },
-        containerColor = OatmealPage
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp)) {
-            // Styled Tab Bar (Distributed full row)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                modifier = Modifier.padding(top = 14.dp, bottom = 12.dp)
             ) {
-                visibleTabs.forEach { item ->
-                    val active = tab == item
-                    val tabBgColor by animateColorAsState(
-                        targetValue = if (active) CoralPink else Color.White,
-                        label = "tabBgColor"
-                    )
-                    val tabTextColor by animateColorAsState(
-                        targetValue = if (active) Color.White else TextDark,
-                        label = "tabTextColor"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(tabBgColor, RoundedCornerShape(12.dp))
-                            .border(
-                                BorderStroke(1.dp, if (active) Color.Transparent else Color(0xFFEFE6DD)),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .noRippleClick { tab = item }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = item.title,
-                            color = tabTextColor,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
-                            )
-                        )
+                items(visibleTabs) { item ->
+                    val itemCount = when (item) {
+                        AdminTab.Category -> state.categories.size
+                        AdminTab.Dish -> state.dishes.size
+                        AdminTab.Announcement -> state.announcements.size
+                        AdminTab.User -> state.adminUsers.size
+                        AdminTab.Order -> state.adminOrders.size
                     }
+                    AdminModuleCard(
+                        tab = item,
+                        count = itemCount,
+                        selected = tab == item,
+                        onClick = { tab = item }
+                    )
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
-            
-            // Tab Contents
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .glassConvex(28.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxSize().padding(start = 14.dp, top = 16.dp, end = 14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "${tab.title}管理",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = tokens.textPrimary
+                        )
+                        Box(
+                            modifier = Modifier
+                                .glassConvex(14.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { primaryAction() }
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (tab == AdminTab.Order) "刷新" else "新增",
+                                color = GlassAccent.primary,
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when (tab) {
                     AdminTab.Category -> CategoryAdminList(state.categories, onEdit = { categoryEditor = it }, onDelete = vm::deleteCategory)
                     AdminTab.Dish -> DishAdminList(
@@ -221,6 +229,8 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
                         onPartner = { partnerEditor = it }
                     )
                     AdminTab.Order -> OrderAdminList(state.adminOrders, onDelete = vm::deleteAdminOrder)
+                }
+                    }
                 }
             }
         }
@@ -263,19 +273,107 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
 }
 
 @Composable
-private fun AdminEmptyState(message: String) {
+private fun AdminConsoleHeader(
+    tab: AdminTab,
+    count: Int,
+    isSuperAdmin: Boolean,
+    onBack: () -> Unit,
+    onPrimaryAction: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
     Box(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 100.dp),
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .glassConvex(24.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回", tint = GlassAccent.primary)
+                }
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "后台管理",
+                    color = tokens.textPrimary,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .glassConcave(14.dp)
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    text = if (isSuperAdmin) "超级管理员" else "管理员",
+                    color = GlassAccent.primary,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminModuleCard(
+    tab: AdminTab,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    val shape = RoundedCornerShape(16.dp)
+    val textColor by animateColorAsState(
+        targetValue = if (selected) GlassAccent.primary else tokens.textPrimary,
+        label = "tabTextColor"
+    )
+    Box(
+        modifier = Modifier
+            .then(
+                if (selected) Modifier.glassConvex(16.dp) else Modifier.glassConcave(16.dp)
+            )
+            .clip(shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = message,
-            color = TextMuted,
-            style = MaterialTheme.typography.bodyLarge
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = tab.title,
+                color = textColor,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .background(
+                        if (selected) GlassAccent.primary.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.05f),
+                        CircleShape
+                    )
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "$count",
+                    color = if (selected) GlassAccent.primary else tokens.textSecondary,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold)
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun AdminEmptyState(message: String) {
+    Box(modifier = Modifier.fillMaxSize())
 }
 
 @Composable
@@ -306,6 +404,7 @@ private fun DishAdminList(
     onEdit: (Dish) -> Unit,
     onDelete: (Long) -> Unit
 ) {
+    val tokens = LocalGlassTokens.current
     Column(modifier = Modifier.fillMaxSize()) {
         if (categories.isNotEmpty()) {
             LazyRow(
@@ -315,29 +414,24 @@ private fun DishAdminList(
             ) {
                 items(categories) { category ->
                     val active = category.id == activeCategoryId
-                    val chipBgColor by animateColorAsState(
-                        targetValue = if (active) CoralPink else Color.White,
-                        label = "chipBgColor"
-                    )
                     val chipTextColor by animateColorAsState(
-                        targetValue = if (active) Color.White else TextDark,
+                        targetValue = if (active) GlassAccent.primary else tokens.textPrimary,
                         label = "chipTextColor"
                     )
                     Box(
                         modifier = Modifier
-                            .background(chipBgColor, RoundedCornerShape(16.dp))
-                            .border(
-                                BorderStroke(1.dp, if (active) Color.Transparent else Color(0xFFEFE6DD)),
-                                RoundedCornerShape(16.dp)
+                            .then(
+                                if (active) Modifier.glassConvex(14.dp) else Modifier.glassConcave(14.dp)
                             )
-                            .noRippleClick { onSelectCategory(category.id) }
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { onSelectCategory(category.id) }
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = category.name,
                             color = chipTextColor,
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = if (active) FontWeight.ExtraBold else FontWeight.Medium)
                         )
                     }
                 }
@@ -389,6 +483,7 @@ private fun AnnouncementAdminList(items: List<Announcement>, onEdit: (Announceme
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun UserAdminList(
     users: List<User>,
@@ -404,72 +499,123 @@ private fun UserAdminList(
     } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(users) { user ->
-                val canEdit = isSuperAdmin || user.id == currentUserId
-                val canManagePartner = isSuperAdmin || user.id == currentUserId
-                val canChangeRole = isSuperAdmin && user.role != "super_admin"
-                val canDelete = isSuperAdmin && user.role != "super_admin" && user.id != currentUserId
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF5EFE6)),
-                    modifier = Modifier.fillMaxWidth().shadow(1.dp, RoundedCornerShape(20.dp))
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(
-                            user.nickname ?: "未命名用户",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = TextDark
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "账号: ${user.username ?: "无"}  ·  角色: ${user.role}  ·  接单人: ${users.firstOrNull { it.id == user.partnerId }?.nickname ?: "未设置"}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextMuted
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            contentPadding = PaddingValues(end = 4.dp),
-                            modifier = Modifier.fillMaxWidth()
+                val isNewlyAddedUser = user.id > 2L && user.nickname != "熙熙" && user.nickname != "哥哥"
+                val tokens = LocalGlassTokens.current
+                var showDeleteConfirm by remember { mutableStateOf(false) }
+                val dismissState = rememberSwipeToDismissBoxState(
+                    confirmValueChange = { value ->
+                        if (isNewlyAddedUser && value == SwipeToDismissBoxValue.EndToStart) {
+                            showDeleteConfirm = true
+                            false
+                        } else {
+                            false
+                        }
+                    }
+                )
+
+                SwipeToDismissBox(
+                    state = dismissState,
+                    enableDismissFromStartToEnd = false,
+                    enableDismissFromEndToStart = isNewlyAddedUser,
+                    backgroundContent = {
+                        val isSwiping = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.EndToStart
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .glassConvex(20.dp)
+                                .background(
+                                    if (isSwiping) Color(0xFFFFEBEE).copy(alpha = 0.85f) else Color.Transparent,
+                                    RoundedCornerShape(20.dp)
+                                )
+                                .padding(horizontal = 20.dp),
+                            contentAlignment = Alignment.CenterEnd
                         ) {
-                            item {
-                                AdminActionPill(
-                                    text = "编辑",
-                                    container = Color(0xFFFFF2F4),
-                                    content = CoralPink,
-                                    onClick = { onEdit(user) }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "左滑删除",
+                                    color = Color(0xFFE53935),
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                                 )
-                            }
-                            item {
-                                AdminActionPill(
-                                    text = "接单人",
-                                    container = Color(0xFFF3EFE9),
-                                    content = TextDark,
-                                    onClick = { onPartner(user) }
+                                Spacer(Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "删除",
+                                    tint = Color(0xFFE53935),
+                                    modifier = Modifier.size(20.dp)
                                 )
-                            }
-                            item {
-                                AdminActionPill(
-                                    text = if (user.role == "admin") "设普通" else "设管理",
-                                    container = Color(0xFFEAF5FF),
-                                    content = Color(0xFF1E88E5),
-                                    minWidth = 74.dp,
-                                    onClick = { onToggleRole(user) }
-                                )
-                            }
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .background(Color(0xFFFFEBEE), CircleShape)
-                                        .noRippleClick { onDelete(user.id) },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.Delete, "删除", tint = Color(0xFFE53935), modifier = Modifier.size(20.dp))
-                                }
                             }
                         }
                     }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .glassConvex(20.dp)
+                            .then(
+                                if (isNewlyAddedUser) {
+                                    Modifier.combinedClickable(
+                                        onClick = {},
+                                        onLongClick = { onEdit(user) }
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text(
+                                user.nickname ?: "未命名用户",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = tokens.textPrimary
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "账号: ${user.username ?: "无"}  ·  角色: ${user.role}  ·  接单人: ${users.firstOrNull { it.id == user.partnerId }?.nickname ?: "未设置"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = tokens.textSecondary
+                            )
+                        }
+                    }
+                }
+
+                if (showDeleteConfirm) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteConfirm = false },
+                        modifier = Modifier.glassConvexOverlay(24.dp),
+                        containerColor = Color.Transparent,
+                        title = {
+                            Text(
+                                "确认删除",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                color = GlassAccent.primaryDark
+                            )
+                        },
+                        text = {
+                            Text(
+                                "确定要删除用户 \"${user.nickname}\" 吗？此操作无法撤销。",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = tokens.textPrimary
+                            )
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    showDeleteConfirm = false
+                                    onDelete(user.id)
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                            ) {
+                                Text("确认删除", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteConfirm = false }) {
+                                Text("取消", color = tokens.textSecondary)
+                            }
+                        }
+                    )
                 }
             }
             item { Spacer(Modifier.height(24.dp)) }
@@ -480,29 +626,42 @@ private fun UserAdminList(
 @Composable
 private fun AdminActionPill(
     text: String,
-    container: Color,
-    content: Color,
-    minWidth: androidx.compose.ui.unit.Dp = 68.dp,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    isDestructive: Boolean = false,
     onClick: () -> Unit
 ) {
+    val contentColor = if (isDestructive) Color(0xFFE53935).copy(alpha = 0.9f) else GlassAccent.primary
+    val shape = RoundedCornerShape(12.dp)
+    
     Box(
         modifier = Modifier
-            .height(44.dp)
-            .width(minWidth)
-            .background(container, RoundedCornerShape(14.dp))
-            .noRippleClick { onClick() }
+            .height(34.dp)
+            .glassConcave(12.dp)
+            .clip(shape)
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            color = content,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = text,
+                    tint = contentColor,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(
+                text = text,
+                color = contentColor,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                maxLines = 1
+            )
+        }
     }
 }
 
@@ -532,66 +691,143 @@ private fun OrderAdminList(items: List<Order>, onDelete: (Long) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun AdminCard(title: String, subtitle: String, onEdit: (() -> Unit)?, onDelete: () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5EFE6)),
-        modifier = Modifier.fillMaxWidth().shadow(1.dp, RoundedCornerShape(20.dp))
+    val tokens = LocalGlassTokens.current
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                showDeleteConfirm = true
+                false
+            } else {
+                false
+            }
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            val isSwiping = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.EndToStart
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .glassConvex(20.dp)
+                    .background(
+                        if (isSwiping) Color(0xFFFFEBEE).copy(alpha = 0.85f) else Color.Transparent,
+                        RoundedCornerShape(20.dp)
+                    )
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "左滑删除",
+                        color = Color(0xFFE53935),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "删除",
+                        tint = Color(0xFFE53935),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .glassConvex(20.dp)
+                .then(
+                    if (onEdit != null) {
+                        Modifier.combinedClickable(
+                            onClick = {},
+                            onLongClick = onEdit
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
+                .padding(16.dp)
         ) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.fillMaxWidth()) {
                 Text(
                     title,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark
+                    color = tokens.textPrimary
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted
+                    color = tokens.textSecondary
                 )
             }
-            Spacer(Modifier.width(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (onEdit != null) {
-                    IconButton(
-                        onClick = onEdit,
-                        modifier = Modifier.background(Color(0xFFFFF0F2), CircleShape).size(36.dp)
-                    ) {
-                        Icon(Icons.Default.Edit, "编辑", tint = CoralPink, modifier = Modifier.size(18.dp))
-                    }
-                }
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.background(Color(0xFFFFEBEE), CircleShape).size(36.dp)
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            modifier = Modifier.glassConvexOverlay(24.dp),
+            containerColor = Color.Transparent,
+            title = {
+                Text(
+                    "确认删除",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = GlassAccent.primaryDark
+                )
+            },
+            text = {
+                Text(
+                    "确定要删除 \"$title\" 吗？此操作无法撤销。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = tokens.textPrimary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete()
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
                 ) {
-                    Icon(Icons.Default.Delete, "删除", tint = Color(0xFFE53935), modifier = Modifier.size(18.dp))
+                    Text("确认删除", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("取消", color = tokens.textSecondary)
                 }
             }
-        }
+        )
     }
 }
 
 @Composable
 private fun CategoryEditorDialog(category: Category?, onDismiss: () -> Unit, onSave: (Category) -> Unit) {
+    val tokens = LocalGlassTokens.current
     var name by remember { mutableStateOf(category?.name ?: "") }
     var icon by remember { mutableStateOf(category?.icon ?: "") }
     var sort by remember { mutableStateOf((category?.sortOrder ?: 0).toString()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
-        containerColor = Color.White,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        containerColor = Color.Transparent,
         title = {
             Text(
                 if (category == null) "新增分类" else "编辑分类",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                color = CoralDark
+                color = GlassAccent.primaryDark
             )
         },
         text = {
@@ -604,8 +840,8 @@ private fun CategoryEditorDialog(category: Category?, onDismiss: () -> Unit, onS
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CoralPink,
-                        focusedLabelColor = CoralPink
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
                     )
                 )
                 OutlinedTextField(
@@ -616,8 +852,8 @@ private fun CategoryEditorDialog(category: Category?, onDismiss: () -> Unit, onS
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CoralPink,
-                        focusedLabelColor = CoralPink
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
                     )
                 )
                 OutlinedTextField(
@@ -628,8 +864,8 @@ private fun CategoryEditorDialog(category: Category?, onDismiss: () -> Unit, onS
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CoralPink,
-                        focusedLabelColor = CoralPink
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
                     )
                 )
             }
@@ -638,14 +874,14 @@ private fun CategoryEditorDialog(category: Category?, onDismiss: () -> Unit, onS
             Button(
                 onClick = { onSave(Category(category?.id ?: 0L, name, icon, sort.toIntOrNull() ?: 0)) },
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CoralPink)
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
             ) {
                 Text("保存", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = TextMuted)
+                Text("取消", color = tokens.textSecondary)
             }
         }
     )
@@ -659,6 +895,7 @@ private fun DishEditorDialog(
     onDismiss: () -> Unit,
     onSave: (Dish) -> Unit
 ) {
+    val tokens = LocalGlassTokens.current
     var name by remember { mutableStateOf(dish?.name ?: "") }
     var image by remember { mutableStateOf(dish?.imageUrl ?: "") }
     var uploading by remember { mutableStateOf(false) }
@@ -666,13 +903,13 @@ private fun DishEditorDialog(
     var categoryId by remember { mutableStateOf(dish?.categoryId ?: categories.firstOrNull()?.id ?: 0L) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
-        containerColor = Color.White,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        containerColor = Color.Transparent,
         title = {
             Text(
                 if (dish == null) "新增菜品" else "编辑菜品",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                color = CoralDark
+                color = GlassAccent.primaryDark
             )
         },
         text = {
@@ -685,14 +922,14 @@ private fun DishEditorDialog(
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CoralPink,
-                        focusedLabelColor = CoralPink
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
                     )
                 )
                 Text(
                     "所属分类",
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextMuted
+                    color = tokens.textSecondary
                 )
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -703,7 +940,7 @@ private fun DishEditorDialog(
                         Box(
                             modifier = Modifier
                                 .background(
-                                    if (isSelected) CoralPink else Color(0xFFF5F0EB),
+                                    if (isSelected) GlassAccent.primary else Color(0xFFF5F0EB),
                                     RoundedCornerShape(14.dp)
                                 )
                                 .noRippleClick { categoryId = category.id }
@@ -712,7 +949,7 @@ private fun DishEditorDialog(
                         ) {
                             Text(
                                 text = category.name,
-                                color = if (isSelected) Color.White else TextDark,
+                                color = if (isSelected) Color.White else tokens.textPrimary,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
@@ -738,8 +975,8 @@ private fun DishEditorDialog(
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CoralPink,
-                        focusedLabelColor = CoralPink
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
                     )
                 )
             }
@@ -748,7 +985,7 @@ private fun DishEditorDialog(
             Button(
                 onClick = { onSave(Dish(id = dish?.id ?: 0L, categoryId = categoryId, name = name, imageUrl = image, sortOrder = sort.toIntOrNull() ?: 0)) },
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CoralPink),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary),
                 enabled = !uploading
             ) {
                 Text("保存", fontWeight = FontWeight.Bold)
@@ -756,7 +993,7 @@ private fun DishEditorDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !uploading) {
-                Text("取消", color = TextMuted)
+                Text("取消", color = tokens.textSecondary)
             }
         }
     )
@@ -774,6 +1011,7 @@ private fun DirectImageUploadField(
     onValueChange: (String) -> Unit,
     circular: Boolean = false
 ) {
+    val tokens = LocalGlassTokens.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val launcher = rememberLauncherForActivityResult(
@@ -821,14 +1059,14 @@ private fun DirectImageUploadField(
         Text(
             label,
             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-            color = TextMuted
+            color = tokens.textSecondary
         )
         Box(
             modifier = Modifier
                 .then(if (circular) Modifier.size(92.dp) else Modifier.fillMaxWidth().height(132.dp))
                 .clip(shape)
                 .background(Color(0xFFFFF2F4))
-                .border(BorderStroke(1.dp, CoralPink.copy(alpha = 0.35f)), shape)
+                .border(BorderStroke(1.dp, GlassAccent.primary.copy(alpha = 0.35f)), shape)
                 .noRippleClick(enabled = !uploading) { launcher.launch("image/*") },
             contentAlignment = Alignment.Center
         ) {
@@ -860,12 +1098,12 @@ private fun DirectImageUploadField(
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = label,
-                        tint = CoralPink,
+                        tint = GlassAccent.primary,
                         modifier = Modifier.size(if (circular) 26.dp else 32.dp)
                     )
                     Text(
                         emptyText,
-                        color = CoralPink,
+                        color = GlassAccent.primary,
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -878,7 +1116,7 @@ private fun DirectImageUploadField(
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(
-                        color = CoralPink,
+                        color = GlassAccent.primary,
                         strokeWidth = 3.dp,
                         modifier = Modifier.size(28.dp)
                     )
@@ -888,23 +1126,24 @@ private fun DirectImageUploadField(
         Text(
             text = if (uploading) "正在上传..." else "选择后自动上传，无需手动填写地址",
             style = MaterialTheme.typography.bodySmall,
-            color = if (uploading) CoralPink else TextMuted
+            color = if (uploading) GlassAccent.primary else tokens.textSecondary
         )
     }
 }
 
 @Composable
 private fun AnnouncementEditorDialog(announcement: Announcement?, onDismiss: () -> Unit, onSave: (Long?, String) -> Unit) {
+    val tokens = LocalGlassTokens.current
     var content by remember { mutableStateOf(announcement?.content ?: "") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
-        containerColor = Color.White,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        containerColor = Color.Transparent,
         title = {
             Text(
                 if (announcement == null) "新增公告" else "编辑公告",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                color = CoralDark
+                color = GlassAccent.primaryDark
             )
         },
         text = {
@@ -916,8 +1155,8 @@ private fun AnnouncementEditorDialog(announcement: Announcement?, onDismiss: () 
                 shape = RoundedCornerShape(16.dp),
                 minLines = 4,
                 colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = CoralPink,
-                    focusedLabelColor = CoralPink
+                    focusedBorderColor = GlassAccent.primary,
+                    focusedLabelColor = GlassAccent.primary
                 )
             )
         },
@@ -925,14 +1164,14 @@ private fun AnnouncementEditorDialog(announcement: Announcement?, onDismiss: () 
             Button(
                 onClick = { onSave(announcement?.id, content) },
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CoralPink)
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
             ) {
                 Text("保存", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = TextMuted)
+                Text("取消", color = tokens.textSecondary)
             }
         }
     )
@@ -946,6 +1185,7 @@ private fun UserEditorDialog(
     onDismiss: () -> Unit,
     onSave: (Long?, UserEditorPayload) -> Unit
 ) {
+    val tokens = LocalGlassTokens.current
     var nickname by remember { mutableStateOf(user?.nickname ?: "") }
     var avatar by remember { mutableStateOf(user?.avatarUrl ?: "") }
     var uploading by remember { mutableStateOf(false) }
@@ -953,13 +1193,13 @@ private fun UserEditorDialog(
     var role by remember { mutableStateOf(user?.role ?: "user") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
-        containerColor = Color.White,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        containerColor = Color.Transparent,
         title = {
             Text(
                 if (user == null) "新增用户" else "编辑用户",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                color = CoralDark
+                color = GlassAccent.primaryDark
             )
         },
         text = {
@@ -972,8 +1212,8 @@ private fun UserEditorDialog(
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CoralPink,
-                        focusedLabelColor = CoralPink
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
                     )
                 )
                 DirectImageUploadField(
@@ -996,8 +1236,8 @@ private fun UserEditorDialog(
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CoralPink,
-                        focusedLabelColor = CoralPink
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
                     )
                 )
                 Row(
@@ -1009,22 +1249,22 @@ private fun UserEditorDialog(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .background(if (isUser) CoralPink else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
+                            .background(if (isUser) GlassAccent.primary else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
                             .noRippleClick { role = "user" }
                             .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("普通用户", color = if (isUser) Color.White else TextDark, fontWeight = if (isUser) FontWeight.Bold else FontWeight.Normal)
+                        Text("普通用户", color = if (isUser) Color.White else tokens.textPrimary, fontWeight = if (isUser) FontWeight.Bold else FontWeight.Normal)
                     }
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .background(if (isAdmin) CoralPink else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
+                            .background(if (isAdmin) GlassAccent.primary else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
                             .noRippleClick { role = "admin" }
                             .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("管理员", color = if (isAdmin) Color.White else TextDark, fontWeight = if (isAdmin) FontWeight.Bold else FontWeight.Normal)
+                        Text("管理员", color = if (isAdmin) Color.White else tokens.textPrimary, fontWeight = if (isAdmin) FontWeight.Bold else FontWeight.Normal)
                     }
                 }
             }
@@ -1033,7 +1273,7 @@ private fun UserEditorDialog(
             Button(
                 onClick = { onSave(user?.id, UserEditorPayload(nickname, avatar, password.takeIf { it.isNotBlank() }, role, user?.partnerId)) },
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CoralPink),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary),
                 enabled = !uploading
             ) {
                 Text("保存", fontWeight = FontWeight.Bold)
@@ -1041,7 +1281,7 @@ private fun UserEditorDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !uploading) {
-                Text("取消", color = TextMuted)
+                Text("取消", color = tokens.textSecondary)
             }
         }
     )
@@ -1049,17 +1289,18 @@ private fun UserEditorDialog(
 
 @Composable
 private fun PartnerDialog(user: User, users: List<User>, onDismiss: () -> Unit, onSave: (Long?) -> Unit) {
+    val tokens = LocalGlassTokens.current
     var partnerId by remember { mutableStateOf(user.partnerId) }
     val candidates = users.filter { it.id != user.id }
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
-        containerColor = Color.White,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        containerColor = Color.Transparent,
         title = {
             Text(
                 "设置接单人",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                color = CoralDark
+                color = GlassAccent.primaryDark
             )
         },
         text = {
@@ -1067,7 +1308,7 @@ private fun PartnerDialog(user: User, users: List<User>, onDismiss: () -> Unit, 
                 Text(
                     "为 [${user.nickname ?: "用户"}] 设置关联接单人:",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextDark
+                    color = tokens.textPrimary
                 )
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1077,24 +1318,24 @@ private fun PartnerDialog(user: User, users: List<User>, onDismiss: () -> Unit, 
                         val isNone = partnerId == null
                         Box(
                             modifier = Modifier
-                                .background(if (isNone) CoralPink else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
+                                .background(if (isNone) GlassAccent.primary else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
                                 .noRippleClick { partnerId = null }
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("未设置", color = if (isNone) Color.White else TextDark, fontWeight = if (isNone) FontWeight.Bold else FontWeight.Normal)
+                            Text("未设置", color = if (isNone) Color.White else tokens.textPrimary, fontWeight = if (isNone) FontWeight.Bold else FontWeight.Normal)
                         }
                     }
                     items(candidates) { candidate ->
                         val isSel = partnerId == candidate.id
                         Box(
                             modifier = Modifier
-                                .background(if (isSel) CoralPink else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
+                                .background(if (isSel) GlassAccent.primary else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
                                 .noRippleClick { partnerId = candidate.id }
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(candidate.nickname ?: "成员", color = if (isSel) Color.White else TextDark, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal)
+                            Text(candidate.nickname ?: "成员", color = if (isSel) Color.White else tokens.textPrimary, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal)
                         }
                     }
                 }
@@ -1104,14 +1345,14 @@ private fun PartnerDialog(user: User, users: List<User>, onDismiss: () -> Unit, 
             Button(
                 onClick = { onSave(partnerId) },
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CoralPink)
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
             ) {
                 Text("保存", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = TextMuted)
+                Text("取消", color = tokens.textSecondary)
             }
         }
     )
