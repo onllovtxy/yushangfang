@@ -27,7 +27,7 @@ class KitchenRepository @Inject constructor(
     }
 
     suspend fun logout() {
-        runCatching { api().logout(auth(sessionStore.sessionSnapshot())) }
+        runCatching { api().logout(auth(sessionStore.sessionSnapshot().token)) }
         sessionStore.clear()
     }
     suspend fun updateCachedUser(user: User) = sessionStore.updateUser(user)

@@ -142,7 +142,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.snapshotFlow
+import androidx.compose.runtime.snapshotFlow
 
 // Redesigned Kitchen Theme Palette
 
