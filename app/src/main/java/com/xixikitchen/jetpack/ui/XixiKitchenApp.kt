@@ -114,6 +114,8 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import android.net.Uri
@@ -198,10 +200,30 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
                             navController = nav,
                             startDestination = "kitchen",
                             route = MAIN_GRAPH_ROUTE,
-                            enterTransition = { fadeIn(navigationFadeSpec()) },
-                            exitTransition = { fadeOut(navigationFadeSpec()) },
-                            popEnterTransition = { fadeIn(navigationFadeSpec()) },
-                            popExitTransition = { fadeOut(navigationFadeSpec()) }
+                            enterTransition = {
+                                fadeIn(navigationFadeSpec()) + scaleIn(
+                                    initialScale = 0.94f,
+                                    animationSpec = navigationFadeSpec()
+                                )
+                            },
+                            exitTransition = {
+                                fadeOut(navigationFadeSpec()) + scaleOut(
+                                    targetScale = 0.94f,
+                                    animationSpec = navigationFadeSpec()
+                                )
+                            },
+                            popEnterTransition = {
+                                fadeIn(navigationFadeSpec()) + scaleIn(
+                                    initialScale = 0.94f,
+                                    animationSpec = navigationFadeSpec()
+                                )
+                            },
+                            popExitTransition = {
+                                fadeOut(navigationFadeSpec()) + scaleOut(
+                                    targetScale = 0.94f,
+                                    animationSpec = navigationFadeSpec()
+                                )
+                            }
                         ) {
                             composable("kitchen") {
                                 TopLevelDestination(nav, "kitchen") {
