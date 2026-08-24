@@ -679,23 +679,15 @@ private fun SwipeRevealBox(
     val revealWidth = screenWidthDp / 6f
     val density = LocalDensity.current
     val revealPx = with(density) { revealWidth.toPx() }
-    // Compose 1.8: rememberAnchoredDraggableState 已移除, 直接构造并 remember
-    val state = remember {
+    // Compose 1.8: anchors 必须在构造时提供, 否则首帧布局 requireOffset 抛 IllegalStateException
+    val state = remember(revealPx) {
         AnchoredDraggableState(
             initialValue = RevealValue.Closed,
-            positionalThreshold = { totalDistance -> totalDistance * 0.5f },
-            velocityThreshold = { with(density) { 150.dp.toPx() } },
-            snapAnimationSpec = tween(220),
-            decayAnimationSpec = exponentialDecay()
-        )
-    }
-
-    LaunchedEffect(revealPx) {
-        state.updateAnchors(
-            DraggableAnchors {
+            anchors = DraggableAnchors {
                 RevealValue.Closed at 0f
                 RevealValue.Open at -revealPx
-            }
+            },
+            confirmValueChange = { true }
         )
     }
 
@@ -726,7 +718,10 @@ private fun SwipeRevealBox(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .offset { IntOffset(state.requireOffset().roundToInt(), 0) }
+                .offset {
+                    val off = state.requireOffset()
+                    IntOffset(if (off.isNaN()) 0 else off.roundToInt(), 0)
+                }
                 .then(
                     if (swipeEnabled) {
                         Modifier.anchoredDraggable(state, Orientation.Horizontal)
