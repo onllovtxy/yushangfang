@@ -93,6 +93,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.scale
@@ -545,23 +548,13 @@ private fun LoginScreen(
                         .glassConcave(20.dp)
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
-                    OutlinedTextField(
+                    GlassPasswordField(
                         value = password,
                         onValueChange = { password = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("密码", color = tokens.textSecondary) },
+                        label = "密码",
                         leadingIcon = { Icon(Icons.Default.Lock, null, tint = GlassAccent.primary) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
                         shape = RoundedCornerShape(20.dp),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GlassAccent.primary,
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedLabelColor = GlassAccent.primary,
-                            cursorColor = GlassAccent.primary
-                        )
+                        defaultColors = true
                     )
                 }
                 Row(
@@ -647,6 +640,58 @@ private fun LoginScreen(
 }
 
 @Composable
+private fun GlassPasswordField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    isError: Boolean = false,
+    supportingText: (@Composable () -> Unit)? = null,
+    shape: RoundedCornerShape = RoundedCornerShape(16.dp),
+    defaultColors: Boolean = false
+) {
+    var visible by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.fillMaxWidth(),
+        label = { Text(label) },
+        leadingIcon = leadingIcon,
+        trailingIcon = {
+            IconButton(onClick = { visible = !visible }) {
+                Icon(
+                    imageVector = if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = if (visible) "隐藏密码" else "显示密码",
+                    tint = GlassAccent.primary
+                )
+            }
+        },
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        singleLine = true,
+        isError = isError,
+        supportingText = supportingText,
+        shape = shape,
+        colors = if (defaultColors) {
+            androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = GlassAccent.primary,
+                unfocusedBorderColor = Color.Transparent,
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedLabelColor = GlassAccent.primary,
+                cursorColor = GlassAccent.primary
+            )
+        } else {
+            androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = GlassAccent.primary,
+                focusedLabelColor = GlassAccent.primary,
+                cursorColor = GlassAccent.primary
+            )
+        }
+    )
+}
+
+@Composable
 private fun ErrorGlassDialog(
     message: String,
     onDismiss: () -> Unit
@@ -726,35 +771,17 @@ private fun RegisterDialog(
                         cursorColor = GlassAccent.primary
                     )
                 )
-                OutlinedTextField(
+                GlassPasswordField(
                     value = password,
                     onValueChange = { password = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("密码（至少6位）") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GlassAccent.primary,
-                        focusedLabelColor = GlassAccent.primary,
-                        cursorColor = GlassAccent.primary
-                    )
+                    label = "密码（至少6位）"
                 )
-                OutlinedTextField(
+                GlassPasswordField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("确认密码") },
-                    singleLine = true,
+                    label = "确认密码",
                     isError = passwordError != null,
-                    supportingText = { passwordError?.let { Text(it, color = MaterialTheme.colorScheme.error) } },
-                    visualTransformation = PasswordVisualTransformation(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GlassAccent.primary,
-                        focusedLabelColor = GlassAccent.primary,
-                        cursorColor = GlassAccent.primary
-                    )
+                    supportingText = { passwordError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
                 )
             }
         },
@@ -818,23 +845,15 @@ private fun ResetPasswordDialog(
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp)
                 )
-                OutlinedTextField(
+                GlassPasswordField(
                     value = resetKey,
                     onValueChange = { resetKey = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("重置密钥") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    shape = RoundedCornerShape(16.dp)
+                    label = "重置密钥"
                 )
-                OutlinedTextField(
+                GlassPasswordField(
                     value = newPassword,
                     onValueChange = { newPassword = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("新密码") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    shape = RoundedCornerShape(16.dp)
+                    label = "新密码"
                 )
             }
         },
