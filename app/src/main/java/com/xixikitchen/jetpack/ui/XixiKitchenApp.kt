@@ -112,6 +112,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -124,6 +126,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -201,28 +204,45 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
                             startDestination = "kitchen",
                             route = MAIN_GRAPH_ROUTE,
                             enterTransition = {
-                                fadeIn(navigationFadeSpec()) + scaleIn(
-                                    initialScale = 0.94f,
-                                    animationSpec = navigationFadeSpec()
-                                )
+                                // 四个一级页面(kitchen/orders/discover/mine)互相切换时无动画直切
+                                if (isTopLevelRoute(initialState) && isTopLevelRoute(targetState)) {
+                                    EnterTransition.None
+                                } else {
+                                    fadeIn(navigationFadeSpec()) + scaleIn(
+                                        initialScale = 0.94f,
+                                        animationSpec = navigationFadeSpec()
+                                    )
+                                }
                             },
                             exitTransition = {
-                                fadeOut(navigationFadeSpec()) + scaleOut(
-                                    targetScale = 0.94f,
-                                    animationSpec = navigationFadeSpec()
-                                )
+                                if (isTopLevelRoute(initialState) && isTopLevelRoute(targetState)) {
+                                    ExitTransition.None
+                                } else {
+                                    fadeOut(navigationFadeSpec()) + scaleOut(
+                                        targetScale = 0.94f,
+                                        animationSpec = navigationFadeSpec()
+                                    )
+                                }
                             },
                             popEnterTransition = {
-                                fadeIn(navigationFadeSpec()) + scaleIn(
-                                    initialScale = 0.94f,
-                                    animationSpec = navigationFadeSpec()
-                                )
+                                if (isTopLevelRoute(initialState) && isTopLevelRoute(targetState)) {
+                                    EnterTransition.None
+                                } else {
+                                    fadeIn(navigationFadeSpec()) + scaleIn(
+                                        initialScale = 0.94f,
+                                        animationSpec = navigationFadeSpec()
+                                    )
+                                }
                             },
                             popExitTransition = {
-                                fadeOut(navigationFadeSpec()) + scaleOut(
-                                    targetScale = 0.94f,
-                                    animationSpec = navigationFadeSpec()
-                                )
+                                if (isTopLevelRoute(initialState) && isTopLevelRoute(targetState)) {
+                                    ExitTransition.None
+                                } else {
+                                    fadeOut(navigationFadeSpec()) + scaleOut(
+                                        targetScale = 0.94f,
+                                        animationSpec = navigationFadeSpec()
+                                    )
+                                }
                             }
                         ) {
                             composable("kitchen") {
@@ -368,6 +388,13 @@ internal data class TopLevelNavigationPolicy(
     val launchSingleTop: Boolean,
     val restoreState: Boolean
 )
+
+/** 一级页面路由（底部导航四个入口），互相切换时不做转场动画 */
+private val TOP_LEVEL_ROUTES = setOf("kitchen", "orders", "discover", "mine")
+
+private fun isTopLevelRoute(entry: NavBackStackEntry): Boolean {
+    return entry.destination.route in TOP_LEVEL_ROUTES
+}
 
 internal fun topLevelNavigationPolicy(): TopLevelNavigationPolicy =
     TopLevelNavigationPolicy(
