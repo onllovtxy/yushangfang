@@ -203,47 +203,11 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
                             navController = nav,
                             startDestination = "kitchen",
                             route = MAIN_GRAPH_ROUTE,
-                            enterTransition = {
-                                // 四个一级页面(kitchen/orders/discover/mine)互相切换时无动画直切
-                                if (isTopLevelRoute(initialState) && isTopLevelRoute(targetState)) {
-                                    EnterTransition.None
-                                } else {
-                                    fadeIn(navigationFadeSpec()) + scaleIn(
-                                        initialScale = 0.94f,
-                                        animationSpec = navigationFadeSpec()
-                                    )
-                                }
-                            },
-                            exitTransition = {
-                                if (isTopLevelRoute(initialState) && isTopLevelRoute(targetState)) {
-                                    ExitTransition.None
-                                } else {
-                                    fadeOut(navigationFadeSpec()) + scaleOut(
-                                        targetScale = 0.94f,
-                                        animationSpec = navigationFadeSpec()
-                                    )
-                                }
-                            },
-                            popEnterTransition = {
-                                if (isTopLevelRoute(initialState) && isTopLevelRoute(targetState)) {
-                                    EnterTransition.None
-                                } else {
-                                    fadeIn(navigationFadeSpec()) + scaleIn(
-                                        initialScale = 0.94f,
-                                        animationSpec = navigationFadeSpec()
-                                    )
-                                }
-                            },
-                            popExitTransition = {
-                                if (isTopLevelRoute(initialState) && isTopLevelRoute(targetState)) {
-                                    ExitTransition.None
-                                } else {
-                                    fadeOut(navigationFadeSpec()) + scaleOut(
-                                        targetScale = 0.94f,
-                                        animationSpec = navigationFadeSpec()
-                                    )
-                                }
-                            }
+                            // 导航切换不播放任何转场动画（应要求）
+                            enterTransition = { EnterTransition.None },
+                            exitTransition = { ExitTransition.None },
+                            popEnterTransition = { EnterTransition.None },
+                            popExitTransition = { ExitTransition.None }
                         ) {
                             composable("kitchen") {
                                 TopLevelDestination(nav, "kitchen") {
@@ -309,17 +273,9 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
 
 internal const val MAIN_GRAPH_ROUTE = "main_graph"
 
-private const val NAVIGATION_FADE_DURATION_MILLIS = 260
-
 internal fun isNestedForwardTransition(initialRoute: String?, targetRoute: String?): Boolean =
     (initialRoute == "orders" && targetRoute == "orderDetail/{id}") ||
         (initialRoute == "mine" && targetRoute == "admin")
-
-private fun <T> navigationFadeSpec(): TweenSpec<T> =
-    tween(
-        durationMillis = NAVIGATION_FADE_DURATION_MILLIS,
-        easing = LinearEasing
-    )
 
 @Composable
 private fun TopLevelDestination(
@@ -388,13 +344,6 @@ internal data class TopLevelNavigationPolicy(
     val launchSingleTop: Boolean,
     val restoreState: Boolean
 )
-
-/** 一级页面路由（底部导航四个入口），互相切换时不做转场动画 */
-private val TOP_LEVEL_ROUTES = setOf("kitchen", "orders", "discover", "mine")
-
-private fun isTopLevelRoute(entry: NavBackStackEntry): Boolean {
-    return entry.destination.route in TOP_LEVEL_ROUTES
-}
 
 internal fun topLevelNavigationPolicy(): TopLevelNavigationPolicy =
     TopLevelNavigationPolicy(
