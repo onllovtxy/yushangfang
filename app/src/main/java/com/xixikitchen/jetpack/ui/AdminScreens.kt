@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -44,9 +45,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.AnchoredDraggableState
+import androidx.compose.foundation.gestures.DraggableAnchors
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -66,7 +71,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -502,50 +510,10 @@ private fun UserAdminList(
                 val isNewlyAddedUser = user.id > 2L && user.nickname != "熙熙" && user.nickname != "哥哥"
                 val tokens = LocalGlassTokens.current
                 var showDeleteConfirm by remember { mutableStateOf(false) }
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = { value ->
-                        if (isNewlyAddedUser && value == SwipeToDismissBoxValue.EndToStart) {
-                            showDeleteConfirm = true
-                            false
-                        } else {
-                            false
-                        }
-                    }
-                )
 
-                SwipeToDismissBox(
-                    state = dismissState,
-                    enableDismissFromStartToEnd = false,
-                    enableDismissFromEndToStart = isNewlyAddedUser,
-                    backgroundContent = {
-                        val isSwiping = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.EndToStart
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .glassConvex(20.dp)
-                                .background(
-                                    if (isSwiping) Color(0xFFFFEBEE).copy(alpha = 0.85f) else Color.Transparent,
-                                    RoundedCornerShape(20.dp)
-                                )
-                                .padding(horizontal = 20.dp),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    "左滑删除",
-                                    color = Color(0xFFE53935),
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "删除",
-                                    tint = Color(0xFFE53935),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
+                SwipeRevealBox(
+                    swipeEnabled = isNewlyAddedUser,
+                    onDeleteClick = { showDeleteConfirm = true }
                 ) {
                     Box(
                         modifier = Modifier
@@ -691,55 +659,93 @@ private fun OrderAdminList(items: List<Order>, onDelete: (Long) -> Unit) {
     }
 }
 
+/** 左滑揭示的两种停靠状态：闭合 / 展开(露出删除按钮) */
+private enum class RevealValue { Closed, Open }
+
+/**
+ * iOS 风格左滑组件：向左滑动一段距离后停住，露出右侧删除按钮，
+ * 点击按钮才执行删除；右滑或点击按钮后收起。
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SwipeRevealBox(
+    swipeEnabled: Boolean = true,
+    onDeleteClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val revealWidth = 96.dp
+    val density = LocalDensity.current
+    val revealPx = with(density) { revealWidth.toPx() }
+    // Compose 1.8: rememberAnchoredDraggableState 已移除, 直接构造并 remember
+    val state = remember {
+        AnchoredDraggableState(
+            initialValue = RevealValue.Closed,
+            positionalThreshold = { totalDistance -> totalDistance * 0.5f },
+            velocityThreshold = { with(density) { 150.dp.toPx() } },
+            snapAnimationSpec = tween(220),
+            decayAnimationSpec = exponentialDecay()
+        )
+    }
+
+    LaunchedEffect(revealPx) {
+        state.updateAnchors(
+            DraggableAnchors {
+                RevealValue.Closed at 0f
+                RevealValue.Open at -revealPx
+            }
+        )
+    }
+
+    Box(Modifier.fillMaxWidth()) {
+        // 底层：删除按钮（藏在卡片右侧，滑动时露出）
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(start = 20.dp),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(revealWidth)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFFE53935))
+                    .clickable {
+                        onDeleteClick()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("删除", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // 内容层：跟手滑动，松手后停在 Closed / Open 两个锚点
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(state.requireOffset().roundToInt(), 0) }
+                .then(
+                    if (swipeEnabled) {
+                        Modifier.anchoredDraggable(state, Orientation.Horizontal)
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
+            content()
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun AdminCard(title: String, subtitle: String, onEdit: (() -> Unit)?, onDelete: () -> Unit) {
     val tokens = LocalGlassTokens.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                showDeleteConfirm = true
-                false
-            } else {
-                false
-            }
-        }
-    )
 
-    SwipeToDismissBox(
-        state = dismissState,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            val isSwiping = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.EndToStart
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .glassConvex(20.dp)
-                    .background(
-                        if (isSwiping) Color(0xFFFFEBEE).copy(alpha = 0.85f) else Color.Transparent,
-                        RoundedCornerShape(20.dp)
-                    )
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "左滑删除",
-                        color = Color(0xFFE53935),
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "删除",
-                        tint = Color(0xFFE53935),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
+    SwipeRevealBox(
+        swipeEnabled = true,
+        onDeleteClick = { showDeleteConfirm = true }
     ) {
         Box(
             modifier = Modifier
