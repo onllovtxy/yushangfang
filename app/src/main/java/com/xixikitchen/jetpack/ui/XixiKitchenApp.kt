@@ -91,6 +91,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -639,6 +644,109 @@ private fun LoginScreen(
     }
 }
 
+/** 睁眼图标（密文可见时显示），Lucide "eye"，描边风格 */
+private val EyeOpenIcon: ImageVector = ImageVector.Builder(
+    name = "EyeOpen",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f
+).apply {
+    path(
+        fill = SolidColor(Color.Transparent),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round
+    ) {
+        // M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0
+        moveTo(2.062f, 12.348f)
+        arcToRelative(1f, 1f, 0f, false, true, 0f, -0.696f)
+        arcToRelative(10.75f, 10.75f, 0f, false, true, 19.876f, 0f)
+        arcToRelative(1f, 1f, 0f, false, true, 0f, 0.696f)
+        arcToRelative(10.75f, 10.75f, 0f, false, true, -19.876f, 0f)
+        close()
+    }
+    path(
+        fill = SolidColor(Color.Transparent),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round
+    ) {
+        // <circle cx="12" cy="12" r="3"/>
+        moveTo(12f, 9f)
+        arcToRelative(3f, 3f, 0f, false, true, 0f, 6f)
+        arcToRelative(3f, 3f, 0f, false, true, 0f, -6f)
+        close()
+    }
+}.build()
+
+/** 闭眼图标（密文隐藏时显示），Lucide "eye-closed"，睫毛下垂描边风格 */
+private val EyeClosedIcon: ImageVector = ImageVector.Builder(
+    name = "EyeClosed",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f
+).apply {
+    path(
+        fill = SolidColor(Color.Transparent),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round
+    ) {
+        // M2 8a10.645 10.645 0 0 0 20 0
+        moveTo(2f, 8f)
+        arcToRelative(10.645f, 10.645f, 0f, false, false, 20f, 0f)
+    }
+    path(
+        fill = SolidColor(Color.Transparent),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round
+    ) {
+        // m15 18-.722-3.25
+        moveTo(15f, 18f)
+        lineToRelative(-0.722f, -3.25f)
+    }
+    path(
+        fill = SolidColor(Color.Transparent),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round
+    ) {
+        // m20 15-1.726-2.05
+        moveTo(20f, 15f)
+        lineToRelative(-1.726f, -2.05f)
+    }
+    path(
+        fill = SolidColor(Color.Transparent),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round
+    ) {
+        // m4 15 1.726-2.05
+        moveTo(4f, 15f)
+        lineToRelative(1.726f, -2.05f)
+    }
+    path(
+        fill = SolidColor(Color.Transparent),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 2f,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round
+    ) {
+        // m9 18 .722-3.25
+        moveTo(9f, 18f)
+        lineToRelative(0.722f, -3.25f)
+    }
+}.build()
+
 @Composable
 private fun GlassPasswordField(
     value: String,
@@ -661,7 +769,8 @@ private fun GlassPasswordField(
         trailingIcon = {
             IconButton(onClick = { visible = !visible }) {
                 Icon(
-                    imageVector = if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    // 看得见(明文)显示睁眼, 看不见(密文)显示睫毛闭眼
+                    imageVector = if (visible) EyeOpenIcon else EyeClosedIcon,
                     contentDescription = if (visible) "隐藏密码" else "显示密码",
                     tint = GlassAccent.primary
                 )
