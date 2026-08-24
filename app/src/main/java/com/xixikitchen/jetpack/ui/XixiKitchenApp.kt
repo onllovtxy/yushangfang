@@ -809,31 +809,12 @@ private fun ErrorGlassDialog(
     AlertDialog(
         modifier = Modifier.glassConvexOverlay(24.dp),
         onDismissRequest = onDismiss,
-        icon = {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(GlassAccent.primary.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = GlassAccent.primary,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        },
-        title = {
-            Text("哎呀，出错了", fontWeight = FontWeight.Bold, color = tokens.textPrimary)
-        },
         text = {
             Text(
                 message,
-                color = tokens.textSecondary,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
+                color = tokens.textPrimary,
+                fontSize = 15.sp,
+                lineHeight = 22.sp
             )
         },
         confirmButton = {
