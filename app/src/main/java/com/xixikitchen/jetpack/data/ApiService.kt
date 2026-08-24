@@ -16,6 +16,9 @@ interface ApiService {
     @POST("/api/user/password-login")
     suspend fun login(@Body request: LoginRequest): ApiResponse<LoginPayload>
 
+    @POST("/api/user/register")
+    suspend fun register(@Body request: RegisterRequest): ApiResponse<LoginPayload>
+
     @POST("/api/user/logout")
     suspend fun logout(@Header("Authorization") token: String): ApiResponse<String>
 
@@ -60,9 +63,6 @@ interface ApiService {
 
     @PUT("/api/user/update")
     suspend fun updateProfile(@Header("Authorization") token: String, @Body request: ProfileUpdateRequest): ApiResponse<String>
-
-    @POST("/api/push/device-token")
-    suspend fun registerPushToken(@Header("Authorization") token: String, @Body request: PushTokenRequest): ApiResponse<String>
 
     @POST("/api/order/create")
     suspend fun createOrder(@Header("Authorization") token: String, @Body request: OrderCreateRequest): ApiResponse<Any>

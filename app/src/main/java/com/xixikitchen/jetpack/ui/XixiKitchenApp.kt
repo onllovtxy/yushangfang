@@ -42,7 +42,6 @@ import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FoodBank
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Explore
@@ -173,10 +172,9 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
             if (!state.isLoggedIn) {
                 LoginScreen(
                     loading = state.loading,
-                    backendBaseUrl = state.backendBaseUrl,
                     onLogin = vm::login,
-                    onResetPassword = vm::resetPassword,
-                    onSaveBackendBaseUrl = vm::saveBackendBaseUrl
+                    onRegister = vm::register,
+                    onResetPassword = vm::resetPassword
                 )
             } else {
                 val nav = rememberNavController()
@@ -484,17 +482,15 @@ private fun rememberPullRefreshState(globalLoading: Boolean): Pair<Boolean, () -
 @Composable
 private fun LoginScreen(
     loading: Boolean,
-    backendBaseUrl: String,
     onLogin: (String, String) -> Unit,
-    onResetPassword: (String, String, String) -> Unit,
-    onSaveBackendBaseUrl: (String) -> Unit
+    onRegister: (String, String) -> Unit,
+    onResetPassword: (String, String, String) -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showResetDialog by remember { mutableStateOf(false) }
-    var showBackendDialog by remember { mutableStateOf(false) }
-    var iconTapCount by remember { mutableStateOf(0) }
+    var showRegisterDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -517,30 +513,7 @@ private fun LoginScreen(
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .noRippleClick {
-                            iconTapCount += 1
-                            if (iconTapCount >= 10) {
-                                iconTapCount = 0
-                                showBackendDialog = true
-                            }
-                        }
-                        .background(
-                            Brush.linearGradient(colors = listOf(GlassAccent.primaryBright, GlassAccent.primary)),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FoodBank,
-                        contentDescription = "Kitchen Icon",
-                        tint = Color.White,
-                        modifier = Modifier.size(44.dp)
-                    )
-                }
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(8.dp))
 
                 Box(
                     modifier = Modifier
@@ -593,12 +566,25 @@ private fun LoginScreen(
                         )
                     )
                 }
-                TextButton(
-                    onClick = { showResetDialog = true },
-                    enabled = !loading,
-                    modifier = Modifier.align(Alignment.End)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("重置密码", color = GlassAccent.primary, fontWeight = FontWeight.SemiBold)
+                    TextButton(
+                        onClick = { showRegisterDialog = true },
+                        enabled = !loading,
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                    ) {
+                        Text("注册", color = GlassAccent.primary, fontWeight = FontWeight.SemiBold)
+                    }
+                    TextButton(
+                        onClick = { showResetDialog = true },
+                        enabled = !loading,
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                    ) {
+                        Text("忘记密码", color = GlassAccent.primary, fontWeight = FontWeight.SemiBold)
+                    }
                 }
                 Spacer(Modifier.height(28.dp))
 
@@ -649,14 +635,14 @@ private fun LoginScreen(
         )
     }
 
-    if (showBackendDialog) {
-        BackendAddressDialog(
-            initialBaseUrl = backendBaseUrl,
+    if (showRegisterDialog) {
+        RegisterDialog(
+            initialUsername = username,
             loading = loading,
-            onDismiss = { showBackendDialog = false },
-            onConfirm = { baseUrl ->
-                onSaveBackendBaseUrl(baseUrl)
-                showBackendDialog = false
+            onDismiss = { showRegisterDialog = false },
+            onConfirm = { registerUsername, registerPassword ->
+                onRegister(registerUsername, registerPassword)
+                showRegisterDialog = false
             }
         )
     }
@@ -711,29 +697,30 @@ private fun ErrorGlassDialog(
 }
 
 @Composable
-private fun BackendAddressDialog(
-    initialBaseUrl: String,
+private fun RegisterDialog(
+    initialUsername: String,
     loading: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (String, String) -> Unit
 ) {
     val tokens = LocalGlassTokens.current
-    var baseUrl by remember(initialBaseUrl) { mutableStateOf(initialBaseUrl) }
+    var username by remember { mutableStateOf(initialUsername) }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var passwordError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         modifier = Modifier.glassConvexOverlay(24.dp),
         onDismissRequest = onDismiss,
-        title = {
-            Text("后端地址", fontWeight = FontWeight.Bold, color = tokens.textPrimary)
-        },
+        title = { Text("注册账号", fontWeight = FontWeight.Bold, color = tokens.textPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
-                    value = baseUrl,
-                    onValueChange = { baseUrl = it },
-                    label = { Text("Base URL") },
-                    singleLine = true,
+                    value = username,
+                    onValueChange = { username = it },
                     modifier = Modifier.fillMaxWidth(),
+                    label = { Text("账号") },
+                    singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = GlassAccent.primary,
@@ -741,21 +728,62 @@ private fun BackendAddressDialog(
                         cursorColor = GlassAccent.primary
                     )
                 )
-                Text(
-                    "模拟器本机默认用 ${BackendConfig.DEFAULT_BASE_URL}",
-                    color = tokens.textSecondary,
-                    fontSize = 12.sp
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("密码（至少6位）") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary,
+                        cursorColor = GlassAccent.primary
+                    )
+                )
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("确认密码") },
+                    singleLine = true,
+                    isError = passwordError != null,
+                    supportingText = { passwordError?.let { Text(it, color = MaterialTheme.colorScheme.error) } },
+                    visualTransformation = PasswordVisualTransformation(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary,
+                        cursorColor = GlassAccent.primary
+                    )
                 )
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(baseUrl) },
+                onClick = {
+                    val u = username.trim()
+                    if (u.length < 2) {
+                        passwordError = "用户名至少2个字符"
+                        return@Button
+                    }
+                    if (password.length < 6) {
+                        passwordError = "密码至少6位"
+                        return@Button
+                    }
+                    if (password != confirmPassword) {
+                        passwordError = "两次输入的密码不一致"
+                        return@Button
+                    }
+                    passwordError = null
+                    onConfirm(u, password)
+                },
                 enabled = !loading,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
             ) {
-                Text("保存", fontWeight = FontWeight.Bold)
+                Text("注册", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

@@ -8,6 +8,8 @@ data class ApiResponse<T>(
 
 data class LoginRequest(val username: String, val password: String)
 
+data class RegisterRequest(val username: String, val password: String)
+
 data class PasswordResetRequest(
     val resetKey: String,
     val username: String,
@@ -59,12 +61,6 @@ data class OrderCreateRequest(
 )
 
 data class OrderCreateItem(val dishId: Long, val quantity: Int)
-
-data class PushTokenRequest(
-    val token: String,
-    val platform: String = "android",
-    val appVersion: String? = null
-)
 
 data class OrderPage(
     val total: Long = 0,

@@ -16,6 +16,13 @@ class KitchenRepository @Inject constructor(
         return Session(payload.token, user)
     }
 
+    suspend fun register(username: String, password: String): Session {
+        val payload = api().register(RegisterRequest(username, password)).unwrap()
+        val user = payload.userInfo ?: error("注册响应缺少用户信息")
+        sessionStore.save(payload.token, user)
+        return Session(payload.token, user)
+    }
+
     suspend fun resetPassword(resetKey: String, username: String, newPassword: String) =
         api().resetPassword(PasswordResetRequest(resetKey, username, newPassword)).unwrap()
 
@@ -47,8 +54,6 @@ class KitchenRepository @Inject constructor(
     suspend fun recipients(token: String) = api().recipients(auth(token)).unwrap()
     suspend fun updateProfile(token: String, request: ProfileUpdateRequest) = api().updateProfile(auth(token), request).unwrap()
     suspend fun uploadFile(token: String, file: okhttp3.MultipartBody.Part) = api().uploadFile(auth(token), file).unwrap()
-    suspend fun registerPushToken(token: String, request: PushTokenRequest) =
-        api().registerPushToken(auth(token), request).unwrap()
 
     suspend fun createOrder(token: String, request: OrderCreateRequest) = api().createOrder(auth(token), request).unwrap()
     suspend fun orders(token: String, status: Int? = null) = api().orders(auth(token), status).unwrap()

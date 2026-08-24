@@ -16,7 +16,6 @@ import com.xixikitchen.jetpack.data.ProfileUpdateRequest
 import com.xixikitchen.jetpack.data.Session
 import com.xixikitchen.jetpack.data.User
 import com.xixikitchen.jetpack.data.UserEditorPayload
-import com.xixikitchen.jetpack.push.PushTokenRegistrar
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -57,8 +56,7 @@ data class KitchenUiState(
 
 @HiltViewModel
 class KitchenViewModel @Inject constructor(
-    private val repo: KitchenRepository,
-    private val pushTokenRegistrar: PushTokenRegistrar
+    private val repo: KitchenRepository
 ) : ViewModel() {
     private val _state = MutableStateFlow(KitchenUiState())
     val state: StateFlow<KitchenUiState> = _state.asStateFlow()
@@ -75,7 +73,6 @@ class KitchenViewModel @Inject constructor(
             repo.session.collect { session ->
                 _state.update { it.copy(session = session) }
                 if (session.loggedIn && _state.value.categories.isEmpty()) {
-                    registerPushToken(session.token)
                     refreshHome()
                     refreshOrders()
                     refreshAnnouncements()
@@ -108,6 +105,46 @@ class KitchenViewModel @Inject constructor(
                 _state.update { it.copy(message = null, errorDialogMessage = null) }
             }.onFailure { e ->
                 notifyError(resolveLoginErrorMessage(e))
+            }
+
+            _state.update { it.copy(loading = false) }
+        }
+    }
+
+    fun register(username: String, password: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, message = null, errorDialogMessage = null) }
+
+            val trimmedUsername = username.trim()
+            val trimmedPassword = password
+            if (trimmedUsername.isBlank() || trimmedPassword.isBlank()) {
+                notifyError("请输入账号和密码")
+                _state.update { it.copy(loading = false) }
+                return@launch
+            }
+
+            runCatching {
+                val session = repo.register(trimmedUsername, trimmedPassword)
+                // 注册成功即已登录（后端返回 token），清理状态后进入主页
+                _state.update {
+                    it.copy(
+                        session = session,
+                        message = null,
+                        errorDialogMessage = null,
+                        categories = emptyList(),
+                        dishes = emptyList(),
+                        searchResults = emptyList(),
+                        recipients = emptyList(),
+                        orders = emptyList(),
+                        selectedOrder = null,
+                        announcements = emptyList(),
+                        adminUsers = emptyList(),
+                        adminOrders = emptyList()
+                    )
+                }
+                onSuccess()
+            }.onFailure { e ->
+                notifyError(resolveErrorMessage(e))
             }
 
             _state.update { it.copy(loading = false) }
@@ -473,11 +510,5 @@ class KitchenViewModel @Inject constructor(
         // 错误只走弹窗，不写 snackbar 通道，
         // 避免登录成功后旧的错误提示还残留在主页上
         _state.update { it.copy(errorDialogMessage = message) }
-    }
-
-    private fun registerPushToken(authToken: String) {
-        viewModelScope.launch {
-            pushTokenRegistrar.registerCurrentDevice(authToken)
-        }
     }
 }
