@@ -103,7 +103,9 @@ class KitchenViewModel @Inject constructor(
             runCatching {
                 repo.login(trimmedUsername, trimmedPassword)
             }.onSuccess {
-                notify("登录成功")
+                // 登录成功后不弹任何提示（页面切换本身就是反馈），
+                // 并清掉可能残留的错误消息，进入主页保持干净
+                _state.update { it.copy(message = null, errorDialogMessage = null) }
             }.onFailure { e ->
                 notifyError(resolveLoginErrorMessage(e))
             }
@@ -468,7 +470,9 @@ class KitchenViewModel @Inject constructor(
     }
 
     private fun notifyError(message: String) {
-        _state.update { it.copy(message = message, errorDialogMessage = message) }
+        // 错误只走弹窗，不写 snackbar 通道，
+        // 避免登录成功后旧的错误提示还残留在主页上
+        _state.update { it.copy(errorDialogMessage = message) }
     }
 
     private fun registerPushToken(authToken: String) {

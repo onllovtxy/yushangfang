@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ListAlt
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.ChevronRight
@@ -161,15 +162,9 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
 
     val errorMsg = state.errorDialogMessage
     if (errorMsg != null) {
-        AlertDialog(
-            onDismissRequest = vm::consumeErrorDialog,
-            title = { Text("操作失败", fontWeight = FontWeight.ExtraBold) },
-            text = { Text(errorMsg) },
-            confirmButton = {
-                TextButton(onClick = vm::consumeErrorDialog) {
-                    Text("知道了")
-                }
-            }
+        ErrorGlassDialog(
+            message = errorMsg,
+            onDismiss = vm::consumeErrorDialog
         )
     }
 
@@ -665,6 +660,54 @@ private fun LoginScreen(
             }
         )
     }
+}
+
+@Composable
+private fun ErrorGlassDialog(
+    message: String,
+    onDismiss: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    AlertDialog(
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        onDismissRequest = onDismiss,
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(GlassAccent.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = GlassAccent.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        },
+        title = {
+            Text("哎呀，出错了", fontWeight = FontWeight.Bold, color = tokens.textPrimary)
+        },
+        text = {
+            Text(
+                message,
+                color = tokens.textSecondary,
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+            ) {
+                Text("知道了", fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable
