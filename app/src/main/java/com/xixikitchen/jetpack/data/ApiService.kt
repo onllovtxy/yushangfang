@@ -16,6 +16,9 @@ interface ApiService {
     @POST("/api/user/password-login")
     suspend fun login(@Body request: LoginRequest): ApiResponse<LoginPayload>
 
+    @POST("/api/user/logout")
+    suspend fun logout(@Header("Authorization") token: String): ApiResponse<String>
+
     @POST("/api/admin/reset-password")
     suspend fun resetPassword(@Body request: PasswordResetRequest): ApiResponse<String>
 

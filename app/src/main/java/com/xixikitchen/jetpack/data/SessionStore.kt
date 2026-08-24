@@ -39,6 +39,8 @@ class SessionStore(private val context: Context) {
     val session: Flow<Session> = sessionState.asStateFlow()
     val backendBaseUrl: Flow<String> = backendBaseUrlState.asStateFlow()
 
+    fun sessionSnapshot(): Session = sessionState.value
+
     suspend fun save(token: String, user: User) {
         prefs.edit(commit = true) {
             putString(KEY_TOKEN, token)

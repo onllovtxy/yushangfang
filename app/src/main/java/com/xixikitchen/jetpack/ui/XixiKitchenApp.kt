@@ -112,12 +112,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import android.net.Uri
@@ -143,6 +139,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.snapshotFlow
 
 // Redesigned Kitchen Theme Palette
 
@@ -191,35 +191,10 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
                             navController = nav,
                             startDestination = "kitchen",
                             route = MAIN_GRAPH_ROUTE,
-                            enterTransition = {
-                                if (isNestedForwardTransition(
-                                        initialState.destination.route,
-                                        targetState.destination.route
-                                    )
-                                ) {
-                                    nestedForwardEnterTransition()
-                                } else {
-                                    rootFadeEnterTransition()
-                                }
-                            },
-                            exitTransition = {
-                                if (isNestedForwardTransition(
-                                        initialState.destination.route,
-                                        targetState.destination.route
-                                    )
-                                ) {
-                                    nestedForwardExitTransition()
-                                } else {
-                                    rootFadeExitTransition()
-                                }
-                            },
-                            popEnterTransition = { EnterTransition.None },
-                            popExitTransition = {
-                                slideOutHorizontally(
-                                    targetOffsetX = { fullWidth -> fullWidth },
-                                    animationSpec = standardNavigationAnimationSpec()
-                                )
-                            }
+                            enterTransition = { fadeIn(navigationFadeSpec()) },
+                            exitTransition = { fadeOut(navigationFadeSpec()) },
+                            popEnterTransition = { fadeIn(navigationFadeSpec()) },
+                            popExitTransition = { fadeOut(navigationFadeSpec()) }
                         ) {
                             composable("kitchen") {
                                 TopLevelDestination(nav, "kitchen") {
@@ -285,50 +260,16 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
 
 internal const val MAIN_GRAPH_ROUTE = "main_graph"
 
-private const val NESTED_FORWARD_DURATION_MILLIS = 380
-private const val ROOT_FADE_DURATION_MILLIS = 280
+private const val NAVIGATION_FADE_DURATION_MILLIS = 260
 
 internal fun isNestedForwardTransition(initialRoute: String?, targetRoute: String?): Boolean =
     (initialRoute == "orders" && targetRoute == "orderDetail/{id}") ||
         (initialRoute == "mine" && targetRoute == "admin")
 
-internal fun nestedForwardEnterTransition(): EnterTransition =
-    slideInHorizontally(
-        initialOffsetX = { fullWidth -> fullWidth },
-        animationSpec = standardNavigationAnimationSpec()
-    )
-
-internal fun nestedForwardExitTransition(): ExitTransition =
-    ExitTransition.None
-
-private fun rootFadeEnterTransition(): EnterTransition =
-    slideInHorizontally(
-        initialOffsetX = { fullWidth -> fullWidth / 8 },
-        animationSpec = rootFadeAnimationSpec()
-    ) + fadeIn(
-        initialAlpha = 0f,
-        animationSpec = rootFadeAnimationSpec()
-    )
-
-private fun rootFadeExitTransition(): ExitTransition =
-    slideOutHorizontally(
-        targetOffsetX = { fullWidth -> -fullWidth / 12 },
-        animationSpec = rootFadeAnimationSpec()
-    ) + fadeOut(
-        targetAlpha = 0.25f,
-        animationSpec = rootFadeAnimationSpec()
-    )
-
-private fun <T> standardNavigationAnimationSpec(): TweenSpec<T> =
+private fun <T> navigationFadeSpec(): TweenSpec<T> =
     tween(
-        durationMillis = NESTED_FORWARD_DURATION_MILLIS,
-        easing = FastOutSlowInEasing
-    )
-
-private fun <T> rootFadeAnimationSpec(): TweenSpec<T> =
-    tween(
-        durationMillis = ROOT_FADE_DURATION_MILLIS,
-        easing = FastOutSlowInEasing
+        durationMillis = NAVIGATION_FADE_DURATION_MILLIS,
+        easing = LinearEasing
     )
 
 @Composable
@@ -933,6 +874,13 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
             ) {
                 Spacer(Modifier.height(8.dp))
                 var searchInput by remember(state.searchKeyword) { mutableStateOf(state.searchKeyword) }
+                @OptIn(FlowPreview::class)
+                LaunchedEffect(Unit) {
+                    snapshotFlow { searchInput }
+                        .drop(1)
+                        .debounce(300)
+                        .collect { vm.search(it) }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -944,7 +892,6 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                         value = searchInput,
                         onValueChange = { newValue ->
                             searchInput = newValue
-                            vm.search(newValue)
                         },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("搜索你想吃的菜品...", color = tokens.textSecondary) },
