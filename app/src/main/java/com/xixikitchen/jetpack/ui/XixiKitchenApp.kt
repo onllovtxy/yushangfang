@@ -159,6 +159,20 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
         }
     }
 
+    val errorMsg = state.errorDialogMessage
+    if (errorMsg != null) {
+        AlertDialog(
+            onDismissRequest = vm::consumeErrorDialog,
+            title = { Text("操作失败", fontWeight = FontWeight.ExtraBold) },
+            text = { Text(errorMsg) },
+            confirmButton = {
+                TextButton(onClick = vm::consumeErrorDialog) {
+                    Text("知道了")
+                }
+            }
+        )
+    }
+
     GlassTheme {
         Box(Modifier.fillMaxSize()) {
             if (!state.isLoggedIn) {

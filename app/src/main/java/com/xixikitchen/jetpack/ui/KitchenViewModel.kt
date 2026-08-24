@@ -433,15 +433,22 @@ class KitchenViewModel @Inject constructor(
 
     private fun resolveLoginErrorMessage(e: Throwable): String {
         if (e is retrofit2.HttpException) {
+            val code = e.code()
             val bodyString = runCatching { e.response()?.errorBody()?.string() }.getOrNull().orEmpty()
             if (bodyString.isNotBlank()) {
+                // 后端标准 JSON 响应：直接展示业务 msg
                 val apiResponse = runCatching {
                     com.google.gson.Gson().fromJson(bodyString, com.xixikitchen.jetpack.data.ApiResponse::class.java)
                 }.getOrNull()
                 if (!apiResponse?.msg.isNullOrBlank()) {
                     return apiResponse!!.msg!!
                 }
-                return "登录失败 (${e.code()}): ${bodyString.take(120)}"
+                // 非 JSON（网关 HTML 错误页等）：给出友好提示，不显示原始 HTML
+                return when (code) {
+                    502, 503 -> "服务器暂时不可用，请稍后再试"
+                    404 -> "接口不存在，请检查后端地址设置"
+                    else -> "登录失败 (HTTP $code)，请稍后重试"
+                }
             }
             return "登录失败: ${e.code()}"
         }
