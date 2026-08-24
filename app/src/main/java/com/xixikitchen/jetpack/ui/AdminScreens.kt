@@ -74,6 +74,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -673,7 +674,9 @@ private fun SwipeRevealBox(
     onDeleteClick: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    val revealWidth = 96.dp
+    // 删除按钮宽度 = 屏幕宽度的 1/6
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
+    val revealWidth = screenWidthDp / 6f
     val density = LocalDensity.current
     val revealPx = with(density) { revealWidth.toPx() }
     // Compose 1.8: rememberAnchoredDraggableState 已移除, 直接构造并 remember
