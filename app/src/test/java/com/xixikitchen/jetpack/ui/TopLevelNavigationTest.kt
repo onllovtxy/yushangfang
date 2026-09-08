@@ -67,14 +67,6 @@ class TopLevelNavigationTest {
     }
 
     @Test
-    fun nestedTransitionPolicyMatchesBothSupportedRoutePairs() {
-        assertEquals(true, isNestedForwardTransition("orders", "orderDetail/{id}"))
-        assertEquals(true, isNestedForwardTransition("mine", "admin"))
-        assertEquals(false, isNestedForwardTransition("orders", "mine"))
-        assertEquals(false, isNestedForwardTransition("orderDetail/{id}", "orders"))
-    }
-
-    @Test
     fun switchingRootsLeavesOneActiveComposeEntryAndRestoresTheRoute() {
         nav.navigateToTopLevel("orders")
         assertSingleActiveRoot()

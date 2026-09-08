@@ -54,7 +54,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -124,8 +123,6 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import android.net.Uri
@@ -280,10 +277,6 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
 }
 
 internal const val MAIN_GRAPH_ROUTE = "main_graph"
-
-internal fun isNestedForwardTransition(initialRoute: String?, targetRoute: String?): Boolean =
-    (initialRoute == "orders" && targetRoute == "orderDetail/{id}") ||
-        (initialRoute == "mine" && targetRoute == "admin")
 
 @Composable
 private fun TopLevelDestination(
@@ -1233,34 +1226,11 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                         color = tokens.textPrimary
                     )
                     Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .glassConcave(10.dp)
-                                .padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = "Rating",
-                                    tint = Color(0xFFFFB03A),
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(Modifier.width(3.dp))
-                                Text(
-                                    text = "${dish.rating ?: 5.0}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = tokens.textPrimary
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "月售 ${dish.monthlySales ?: 0}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = tokens.textSecondary
-                        )
-                    }
+                    Text(
+                        text = "月售 ${dish.monthlySales ?: 0}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = tokens.textSecondary
+                    )
                 }
                 var isPressed by remember { mutableStateOf(false) }
                 val buttonScale by animateFloatAsState(
@@ -1991,43 +1961,6 @@ private fun OrderDetailScreen(state: KitchenUiState, vm: KitchenViewModel, nav: 
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = GlassAccent.primary
                                 )
-                            }
-
-                            if (order.status == 2) {
-                                Spacer(Modifier.height(14.dp))
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color(0xFFFDFCFB), RoundedCornerShape(12.dp))
-                                        .padding(12.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        "评价这道菜",
-                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                        color = tokens.textSecondary
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        (1..5).forEach { score ->
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(36.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color.White)
-                                                    .border(BorderStroke(1.dp, Color(0xFFF2E6DB)), CircleShape)
-                                                    .clickable { vm.rateDish(order.id, item.dishId, score) },
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    "$score",
-                                                    color = GlassAccent.primary,
-                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
                     }

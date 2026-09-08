@@ -280,11 +280,6 @@ class KitchenViewModel @Inject constructor(
         notify("操作成功")
     }
 
-    fun rateDish(orderId: Long, dishId: Long, rating: Int) = runAction {
-        repo.rateDish(token(), orderId, dishId, rating)
-        notify("评分成功")
-    }
-
     fun refreshAnnouncements() = runAction {
         _state.update { it.copy(announcements = repo.announcements(token())) }
     }

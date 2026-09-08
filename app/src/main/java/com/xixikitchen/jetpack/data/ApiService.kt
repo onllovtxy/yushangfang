@@ -87,9 +87,6 @@ interface ApiService {
     @PUT("/api/order/complete/{id}")
     suspend fun completeOrder(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
 
-    @POST("/api/order/rate")
-    suspend fun rateDish(@Header("Authorization") token: String, @Body request: RateDishRequest): ApiResponse<String>
-
     @GET("/api/order/stats")
     suspend fun orderStats(@Header("Authorization") token: String): ApiResponse<OrderStats>
 

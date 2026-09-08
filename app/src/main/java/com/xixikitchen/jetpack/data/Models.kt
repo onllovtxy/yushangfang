@@ -43,7 +43,6 @@ data class Dish(
     val categoryId: Long = 0,
     val name: String = "",
     val imageUrl: String? = null,
-    val rating: Double? = null,
     val monthlySales: Int? = null,
     val sortOrder: Int? = null
 )
@@ -94,8 +93,6 @@ data class OrderStats(
     val monthReceived: Int = 0,
     val totalOrders: Int = 0
 )
-
-data class RateDishRequest(val orderId: Long, val dishId: Long, val rating: Int)
 
 data class ProfileUpdateRequest(val nickname: String? = null, val avatarUrl: String? = null)
 

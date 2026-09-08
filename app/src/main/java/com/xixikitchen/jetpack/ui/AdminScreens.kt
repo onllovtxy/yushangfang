@@ -462,7 +462,7 @@ private fun DishAdminList(
                 items(items) { item ->
                     AdminCard(
                         title = item.name,
-                        subtitle = "评分: ${item.rating ?: 5.0}  ·  月售: ${item.monthlySales ?: 0}",
+                        subtitle = "月售: ${item.monthlySales ?: 0}",
                         onEdit = { onEdit(item) },
                         onDelete = { onDelete(item.id) }
                     )

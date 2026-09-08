@@ -61,8 +61,6 @@ class KitchenRepository @Inject constructor(
     suspend fun acceptOrder(token: String, id: Long) = api().acceptOrder(auth(token), id).unwrap()
     suspend fun rejectOrder(token: String, id: Long) = api().rejectOrder(auth(token), id).unwrap()
     suspend fun completeOrder(token: String, id: Long) = api().completeOrder(auth(token), id).unwrap()
-    suspend fun rateDish(token: String, orderId: Long, dishId: Long, rating: Int) =
-        api().rateDish(auth(token), RateDishRequest(orderId, dishId, rating)).unwrap()
     suspend fun orderStats(token: String) = api().orderStats(auth(token)).unwrap()
 
     suspend fun announcements(token: String) = api().announcements(auth(token)).unwrap()
