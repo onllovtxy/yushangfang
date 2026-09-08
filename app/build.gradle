@@ -6,6 +6,12 @@ plugins {
     id 'com.google.dagger.hilt.android'
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
@@ -13,18 +19,22 @@ if (localPropertiesFile.exists()) {
 }
 def releaseStoreFile = project.findProperty("RELEASE_STORE_FILE")
     ?: localProperties.getProperty("RELEASE_STORE_FILE")
+    ?: keystoreProperties.getProperty("RELEASE_STORE_FILE")
     ?: System.getenv("RELEASE_STORE_FILE")
     ?: ""
 def releaseStorePassword = project.findProperty("RELEASE_STORE_PASSWORD")
     ?: localProperties.getProperty("RELEASE_STORE_PASSWORD")
+    ?: keystoreProperties.getProperty("RELEASE_STORE_PASSWORD")
     ?: System.getenv("RELEASE_STORE_PASSWORD")
     ?: ""
 def releaseKeyAlias = project.findProperty("RELEASE_KEY_ALIAS")
     ?: localProperties.getProperty("RELEASE_KEY_ALIAS")
+    ?: keystoreProperties.getProperty("RELEASE_KEY_ALIAS")
     ?: System.getenv("RELEASE_KEY_ALIAS")
     ?: ""
 def releaseKeyPassword = project.findProperty("RELEASE_KEY_PASSWORD")
     ?: localProperties.getProperty("RELEASE_KEY_PASSWORD")
+    ?: keystoreProperties.getProperty("RELEASE_KEY_PASSWORD")
     ?: System.getenv("RELEASE_KEY_PASSWORD")
     ?: ""
 

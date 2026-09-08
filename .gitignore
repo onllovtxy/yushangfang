@@ -5,6 +5,3 @@ app/build/
 local.properties
 .kotlin/
 *.iml
-
-# signing keystore - never commit
-app/xixi-release.jks
