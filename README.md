@@ -68,6 +68,15 @@
 - Debug APK: `app/build/outputs/apk/debug/app-debug.apk`
 - Release APK: `app/build/outputs/apk/release/app-release.apk`
 
+### 发版约定
+
+**每次打包都要递增版本号**，两个都要改（`app/build.gradle` 的 `defaultConfig`）：
+
+- `versionCode`：**必须**递增，否则手机会拒绝覆盖安装。
+- `versionName`：每次交付都进一位（1.0.3 → 1.0.4），不要几个不同的包顶着同一个版本号。
+
+当前版本：**1.0.4**（versionCode 6）
+
 ---
 
 ## 📂 项目结构 (Project Structure)

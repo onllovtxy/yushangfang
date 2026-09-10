@@ -8,7 +8,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,15 +28,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -54,8 +48,6 @@ import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,21 +58,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.xixikitchen.jetpack.data.Announcement
@@ -133,13 +119,6 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
         vm.loadAdminData()
     }
 
-    val moduleCount = when (tab) {
-        AdminTab.Category -> state.categories.size
-        AdminTab.Dish -> state.dishes.size
-        AdminTab.Announcement -> state.announcements.size
-        AdminTab.User -> state.adminUsers.size
-        AdminTab.Order -> state.adminOrders.size
-    }
     val primaryAction = {
         when (tab) {
             AdminTab.Category -> showNewCategory = true
@@ -153,31 +132,24 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
     Scaffold(containerColor = Color.Transparent) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             AdminConsoleHeader(
-                tab = tab,
-                count = moduleCount,
                 isSuperAdmin = isSuperAdmin,
-                onBack = { nav.popBackStack() },
-                onPrimaryAction = primaryAction
+                onBack = { nav.popBackStack() }
             )
 
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                modifier = Modifier.padding(top = 14.dp, bottom = 12.dp)
+            // 固定一行平分宽度、不横向滚动。
+            // 一共就 4~5 个 tab,却要左右滑动才能看到"订单" —— 这没有道理。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(visibleTabs) { item ->
-                    val itemCount = when (item) {
-                        AdminTab.Category -> state.categories.size
-                        AdminTab.Dish -> state.dishes.size
-                        AdminTab.Announcement -> state.announcements.size
-                        AdminTab.User -> state.adminUsers.size
-                        AdminTab.Order -> state.adminOrders.size
-                    }
+                visibleTabs.forEach { item ->
                     AdminModuleCard(
                         tab = item,
-                        count = itemCount,
                         selected = tab == item,
-                        onClick = { tab = item }
+                        onClick = { tab = item },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -202,9 +174,8 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
                         )
                         Box(
                             modifier = Modifier
+                                .noRipplePressable(pressedScale = 0.94f) { primaryAction() }
                                 .glassConvex(14.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .clickable { primaryAction() }
                                 .padding(horizontal = 14.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -283,11 +254,8 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
 
 @Composable
 private fun AdminConsoleHeader(
-    tab: AdminTab,
-    count: Int,
     isSuperAdmin: Boolean,
-    onBack: () -> Unit,
-    onPrimaryAction: () -> Unit
+    onBack: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     Box(
@@ -335,51 +303,34 @@ private fun AdminConsoleHeader(
 @Composable
 private fun AdminModuleCard(
     tab: AdminTab,
-    count: Int,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val tokens = LocalGlassTokens.current
-    val shape = RoundedCornerShape(16.dp)
     val textColor by animateColorAsState(
         targetValue = if (selected) GlassAccent.primary else tokens.textPrimary,
         label = "tabTextColor"
     )
     Box(
-        modifier = Modifier
+        modifier = modifier
+            .noRipplePressable(pressedScale = 0.95f, onClick = onClick)
             .then(
                 if (selected) Modifier.glassConvex(16.dp) else Modifier.glassConcave(16.dp)
             )
-            .clip(shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = tab.title,
-                color = textColor,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-            )
-            Spacer(Modifier.width(6.dp))
-            Box(
-                modifier = Modifier
-                    .background(
-                        if (selected) GlassAccent.primary.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.05f),
-                        CircleShape
-                    )
-                    .padding(horizontal = 7.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "$count",
-                    color = if (selected) GlassAccent.primary else tokens.textSecondary,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold)
-                )
-            }
-        }
+        Text(
+            text = tab.title,
+            color = textColor,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            maxLines = 1
+        )
     }
 }
 
+/** 列表没有数据时直接留空,不显示任何提示文案。 */
 @Composable
 private fun AdminEmptyState(message: String) {
     Box(modifier = Modifier.fillMaxSize())
@@ -394,7 +345,6 @@ private fun CategoryAdminList(items: List<Category>, onEdit: (Category) -> Unit,
             items(items) { item ->
                 AdminCard(
                     title = item.name,
-                    subtitle = "图标: ${item.icon ?: "无"}  ·  排序: ${item.sortOrder ?: 0}",
                     onEdit = { onEdit(item) },
                     onDelete = { onDelete(item.id) }
                 )
@@ -462,7 +412,6 @@ private fun DishAdminList(
                 items(items) { item ->
                     AdminCard(
                         title = item.name,
-                        subtitle = "月售: ${item.monthlySales ?: 0}",
                         onEdit = { onEdit(item) },
                         onDelete = { onDelete(item.id) }
                     )
@@ -481,8 +430,9 @@ private fun AnnouncementAdminList(items: List<Announcement>, onEdit: (Announceme
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(items) { item ->
                 AdminCard(
-                    title = "公告 #${item.id}",
-                    subtitle = item.content,
+                    // 没有副标题之后,"公告 #3" 这种编号就等于什么都没说,
+                    // 所以把公告正文放到标题上 —— 它本来就是这一条的全部内容。
+                    title = item.content,
                     onEdit = { onEdit(item) },
                     onDelete = { onDelete(item.id) }
                 )
@@ -519,17 +469,18 @@ private fun UserAdminList(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassConvex(20.dp)
                             .then(
                                 if (isNewlyAddedUser) {
-                                    Modifier.combinedClickable(
-                                        onClick = {},
-                                        onLongClick = { onEdit(user) }
+                                    Modifier.noRippleCombinedPressable(
+                                        pressedScale = 0.985f,
+                                        onLongClick = { onEdit(user) },
+                                        onClick = {}
                                     )
                                 } else {
                                     Modifier
                                 }
                             )
+                            .glassConvex(20.dp)
                             .padding(16.dp)
                     ) {
                         Column(Modifier.fillMaxWidth()) {
@@ -552,6 +503,7 @@ private fun UserAdminList(
                     AlertDialog(
                         onDismissRequest = { showDeleteConfirm = false },
                         modifier = Modifier.glassConvexOverlay(24.dp),
+                        shape = RoundedCornerShape(24.dp),
                         containerColor = Color.Transparent,
                         title = {
                             Text(
@@ -574,7 +526,7 @@ private fun UserAdminList(
                                     onDelete(user.id)
                                 },
                                 shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.error)
                             ) {
                                 Text("确认删除", fontWeight = FontWeight.Bold, color = Color.White)
                             }
@@ -593,64 +545,14 @@ private fun UserAdminList(
 }
 
 @Composable
-private fun AdminActionPill(
-    text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    isDestructive: Boolean = false,
-    onClick: () -> Unit
-) {
-    val contentColor = if (isDestructive) Color(0xFFE53935).copy(alpha = 0.9f) else GlassAccent.primary
-    val shape = RoundedCornerShape(12.dp)
-    
-    Box(
-        modifier = Modifier
-            .height(34.dp)
-            .glassConcave(12.dp)
-            .clip(shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = text,
-                    tint = contentColor,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(
-                text = text,
-                color = contentColor,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                maxLines = 1
-            )
-        }
-    }
-}
-
-@Composable
 private fun OrderAdminList(items: List<Order>, onDelete: (Long) -> Unit) {
     if (items.isEmpty()) {
         AdminEmptyState("暂无订单数据")
     } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(items) { item ->
-                val statusText = when (item.status) {
-                    0 -> "待接单"
-                    1 -> "已接单"
-                    2 -> "已完成"
-                    3 -> "已拒绝"
-                    else -> "未知"
-                }
                 AdminCard(
                     title = "订单号: ${item.orderNo}",
-                    subtitle = "状态: $statusText  ·  创建时间: ${item.createdAt ?: ""}",
                     onEdit = null,
                     onDelete = { onDelete(item.id) }
                 )
@@ -704,7 +606,7 @@ private fun SwipeRevealBox(
                     .width(revealWidth)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFFE53935))
+                    .background(GlassAccent.error)
                     .clickable {
                         onDeleteClick()
                     },
@@ -737,7 +639,7 @@ private fun SwipeRevealBox(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-private fun AdminCard(title: String, subtitle: String, onEdit: (() -> Unit)?, onDelete: () -> Unit) {
+private fun AdminCard(title: String, onEdit: (() -> Unit)?, onDelete: () -> Unit) {
     val tokens = LocalGlassTokens.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -748,30 +650,30 @@ private fun AdminCard(title: String, subtitle: String, onEdit: (() -> Unit)?, on
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .glassConvex(20.dp)
                 .then(
                     if (onEdit != null) {
-                        Modifier.combinedClickable(
-                            onClick = {},
-                            onLongClick = onEdit
+                        // 编辑只走长按,不放"编辑"按钮。
+                        Modifier.noRippleCombinedPressable(
+                            pressedScale = 0.985f,
+                            onLongClick = onEdit,
+                            onClick = {}
                         )
                     } else {
                         Modifier
                     }
                 )
+                .glassConvex(20.dp)
                 .padding(16.dp)
         ) {
-            Column(Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp)
+            ) {
                 Text(
                     title,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = tokens.textPrimary
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = tokens.textSecondary
                 )
             }
         }
@@ -781,6 +683,7 @@ private fun AdminCard(title: String, subtitle: String, onEdit: (() -> Unit)?, on
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             modifier = Modifier.glassConvexOverlay(24.dp),
+            shape = RoundedCornerShape(24.dp),
             containerColor = Color.Transparent,
             title = {
                 Text(
@@ -803,7 +706,7 @@ private fun AdminCard(title: String, subtitle: String, onEdit: (() -> Unit)?, on
                         onDelete()
                     },
                     shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                    colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.error)
                 ) {
                     Text("确认删除", fontWeight = FontWeight.Bold, color = Color.White)
                 }
@@ -821,11 +724,13 @@ private fun AdminCard(title: String, subtitle: String, onEdit: (() -> Unit)?, on
 private fun CategoryEditorDialog(category: Category?, onDismiss: () -> Unit, onSave: (Category) -> Unit) {
     val tokens = LocalGlassTokens.current
     var name by remember { mutableStateOf(category?.name ?: "") }
-    var icon by remember { mutableStateOf(category?.icon ?: "") }
     var sort by remember { mutableStateOf((category?.sortOrder ?: 0).toString()) }
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.glassConvexOverlay(24.dp),
+        // AlertDialog 默认 shape 是 28dp,和 glassConvexOverlay(24dp) 对不齐 ——
+        // Surface 会按自己的 28dp 圆角投一层阴影,玻璃卡片四角就多出一圈鬼影。
+        shape = RoundedCornerShape(24.dp),
         containerColor = Color.Transparent,
         title = {
             Text(
@@ -849,18 +754,6 @@ private fun CategoryEditorDialog(category: Category?, onDismiss: () -> Unit, onS
                     )
                 )
                 OutlinedTextField(
-                    value = icon,
-                    onValueChange = { icon = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("图标 / Emoji") },
-                    shape = RoundedCornerShape(16.dp),
-                    singleLine = true,
-                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GlassAccent.primary,
-                        focusedLabelColor = GlassAccent.primary
-                    )
-                )
-                OutlinedTextField(
                     value = sort,
                     onValueChange = { sort = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -876,7 +769,7 @@ private fun CategoryEditorDialog(category: Category?, onDismiss: () -> Unit, onS
         },
         confirmButton = {
             Button(
-                onClick = { onSave(Category(category?.id ?: 0L, name, icon, sort.toIntOrNull() ?: 0)) },
+                onClick = { onSave(Category(category?.id ?: 0L, name, sort.toIntOrNull() ?: 0)) },
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
             ) {
@@ -908,6 +801,9 @@ private fun DishEditorDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.glassConvexOverlay(24.dp),
+        // AlertDialog 默认 shape 是 28dp,和 glassConvexOverlay(24dp) 对不齐 ——
+        // Surface 会按自己的 28dp 圆角投一层阴影,玻璃卡片四角就多出一圈鬼影。
+        shape = RoundedCornerShape(24.dp),
         containerColor = Color.Transparent,
         title = {
             Text(
@@ -943,11 +839,11 @@ private fun DishEditorDialog(
                         val isSelected = categoryId == category.id
                         Box(
                             modifier = Modifier
+                                .noRipplePressable(pressedScale = 0.95f) { categoryId = category.id }
                                 .background(
-                                    if (isSelected) GlassAccent.primary else Color(0xFFF5F0EB),
+                                    if (isSelected) GlassAccent.primary else GlassAccent.wash,
                                     RoundedCornerShape(14.dp)
                                 )
-                                .noRippleClick { categoryId = category.id }
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1068,10 +964,10 @@ private fun DirectImageUploadField(
         Box(
             modifier = Modifier
                 .then(if (circular) Modifier.size(92.dp) else Modifier.fillMaxWidth().height(132.dp))
+                .noRipplePressable(enabled = !uploading, pressedScale = 0.98f) { launcher.launch("image/*") }
                 .clip(shape)
-                .background(Color(0xFFFFF2F4))
-                .border(BorderStroke(1.dp, GlassAccent.primary.copy(alpha = 0.35f)), shape)
-                .noRippleClick(enabled = !uploading) { launcher.launch("image/*") },
+                .background(GlassAccent.wash)
+                .border(BorderStroke(1.dp, GlassAccent.stroke), shape),
             contentAlignment = Alignment.Center
         ) {
             if (!imageUrl.isNullOrBlank()) {
@@ -1142,6 +1038,9 @@ private fun AnnouncementEditorDialog(announcement: Announcement?, onDismiss: () 
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.glassConvexOverlay(24.dp),
+        // AlertDialog 默认 shape 是 28dp,和 glassConvexOverlay(24dp) 对不齐 ——
+        // Surface 会按自己的 28dp 圆角投一层阴影,玻璃卡片四角就多出一圈鬼影。
+        shape = RoundedCornerShape(24.dp),
         containerColor = Color.Transparent,
         title = {
             Text(
@@ -1198,6 +1097,9 @@ private fun UserEditorDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.glassConvexOverlay(24.dp),
+        // AlertDialog 默认 shape 是 28dp,和 glassConvexOverlay(24dp) 对不齐 ——
+        // Surface 会按自己的 28dp 圆角投一层阴影,玻璃卡片四角就多出一圈鬼影。
+        shape = RoundedCornerShape(24.dp),
         containerColor = Color.Transparent,
         title = {
             Text(
@@ -1253,8 +1155,8 @@ private fun UserEditorDialog(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .background(if (isUser) GlassAccent.primary else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
-                            .noRippleClick { role = "user" }
+                            .noRipplePressable(pressedScale = 0.96f) { role = "user" }
+                            .background(if (isUser) GlassAccent.primary else GlassAccent.wash, RoundedCornerShape(14.dp))
                             .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1263,8 +1165,8 @@ private fun UserEditorDialog(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .background(if (isAdmin) GlassAccent.primary else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
-                            .noRippleClick { role = "admin" }
+                            .noRipplePressable(pressedScale = 0.96f) { role = "admin" }
+                            .background(if (isAdmin) GlassAccent.primary else GlassAccent.wash, RoundedCornerShape(14.dp))
                             .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1299,6 +1201,9 @@ private fun PartnerDialog(user: User, users: List<User>, onDismiss: () -> Unit, 
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.glassConvexOverlay(24.dp),
+        // AlertDialog 默认 shape 是 28dp,和 glassConvexOverlay(24dp) 对不齐 ——
+        // Surface 会按自己的 28dp 圆角投一层阴影,玻璃卡片四角就多出一圈鬼影。
+        shape = RoundedCornerShape(24.dp),
         containerColor = Color.Transparent,
         title = {
             Text(
@@ -1322,8 +1227,8 @@ private fun PartnerDialog(user: User, users: List<User>, onDismiss: () -> Unit, 
                         val isNone = partnerId == null
                         Box(
                             modifier = Modifier
-                                .background(if (isNone) GlassAccent.primary else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
-                                .noRippleClick { partnerId = null }
+                                .noRipplePressable(pressedScale = 0.95f) { partnerId = null }
+                                .background(if (isNone) GlassAccent.primary else GlassAccent.wash, RoundedCornerShape(14.dp))
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1334,8 +1239,8 @@ private fun PartnerDialog(user: User, users: List<User>, onDismiss: () -> Unit, 
                         val isSel = partnerId == candidate.id
                         Box(
                             modifier = Modifier
-                                .background(if (isSel) GlassAccent.primary else Color(0xFFF5F0EB), RoundedCornerShape(14.dp))
-                                .noRippleClick { partnerId = candidate.id }
+                                .noRipplePressable(pressedScale = 0.95f) { partnerId = candidate.id }
+                                .background(if (isSel) GlassAccent.primary else GlassAccent.wash, RoundedCornerShape(14.dp))
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {

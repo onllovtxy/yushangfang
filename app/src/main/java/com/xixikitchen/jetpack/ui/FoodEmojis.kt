@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.sp
 private val FOOD_EMOJIS = listOf(
     "🍇", "🍈", "🍉", "🍊", "🍋", "🍌", "🍍", "🥭", "🍎", "🍏", "🍐", "🍑", "🍒", "🍓", "🫐", "🥝",
     "🍅", "🫒", "🥥", "🥑", "🍆", "🥔", "🥕", "🌽", "🌶️", "🫑", "🥒", "🥬", "🥦", "🧄", "🧅", "🍄",
-    "🥜", "🫘", "🌰", "🫚", "🫛", "🍞", "🥐", "🥖", "🫓", "🥨", "🥯", "🥞", " waffle", "🧀", "🍖",
+    "🥜", "🫘", "🌰", "🫚", "🫛", "🍞", "🥐", "🥖", "🫓", "🥨", "🥯", "🥞", "🧇", "🧀", "🍖",
     "🍗", "🥩", "🥓", "🍔", "🍟", "🍕", "🌭", "🥪", "🌮", "🌯", "🫔", "🍳", "🥘", "🍲", "🫕", "🥣",
     "🥗", "🍿", "🧈", "🧂", "🥫", "🍱", "🍘", "🍙", "🍚", "🍛", "🍜", "🍝", "🍠", "🍢", "🍣",
     "🍤", "🍥", "🥮", "🍡", "🥟", "🥠", "🥡", "🦀", "🦞", "🦐", "🦑", "🦪", "🍦", "🍧", "🍨", "🍩",
@@ -28,10 +28,7 @@ private val FOOD_EMOJIS = listOf(
 
 fun getFallbackFoodEmoji(dishId: Long, dishName: String?): String {
     val seed = (dishName?.hashCode() ?: dishId.hashCode()).let { if (it < 0) -it else it }
-    // Clean emojis to ensure single emoji output
-    val cleanedEmojis = FOOD_EMOJIS.map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("waffle") }
-    val realEmojis = cleanedEmojis + "🧇"
-    return realEmojis[(seed % realEmojis.size).toInt()]
+    return FOOD_EMOJIS[(seed % FOOD_EMOJIS.size).toInt()]
 }
 
 @Composable
@@ -46,17 +43,17 @@ fun FallbackFoodAvatar(
     val emoji = getFallbackFoodEmoji(dishId, dishName)
     val seed = (dishName?.hashCode() ?: dishId.hashCode()).let { if (it < 0) -it else it }
     
-    // Vibrant pastel gradient-style colors for xixi's kitchen
+    // 暖色系回退底色 —— 跟琥珀主色同一族。
+    // 原来第一位是 0xFFFFF0F2(淡粉),是上一版粉色主题留下的,和现在的暖金主题打架。
     val bgColors = listOf(
-        Color(0xFFFFF0F2), // Pale Pink
         Color(0xFFFFF5EE), // Peach Cream
-        Color(0xFFF0FFF0), // Light Honeydew
-        Color(0xFFF5FFFA), // Mint Green
-        Color(0xFFF0F8FF), // Alice Blue
+        Color(0xFFFFF0E3), // Warm Apricot
         Color(0xFFFFF8DC), // Cornsilk
-        Color(0xFFFFF5F5), // Misty Rose
         Color(0xFFFAF0E6), // Linen
         Color(0xFFFFF9E6), // Light Yellow Cream
+        Color(0xFFF3F7EC), // Light Honeydew
+        Color(0xFFF0F5F2), // Mint Green
+        Color(0xFFF1F6FA), // Alice Blue
         Color(0xFFEAF9FF)  // Soft Aqua
     )
     val bgColor = bgColors[(seed % bgColors.size).toInt()]

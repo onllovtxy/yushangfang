@@ -5,15 +5,22 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.GlassTheme
 import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassMeshBackground
+import com.xixikitchen.jetpack.ui.designsystem.theme.AppTheme
+import com.xixikitchen.jetpack.ui.designsystem.theme.ThemeStore
+import com.xixikitchen.jetpack.ui.designsystem.theme.resolveTheme
+import com.xixikitchen.jetpack.ui.designsystem.theme.orderStatusColors
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcave
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcaveOverlay
+import com.xixikitchen.jetpack.ui.designsystem.motion.AppDuration
+import com.xixikitchen.jetpack.ui.designsystem.motion.AppEase
+import com.xixikitchen.jetpack.ui.designsystem.motion.LocalReducedMotion
+import com.xixikitchen.jetpack.ui.designsystem.motion.SpringSettle
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +32,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,30 +41,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ListAlt
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -70,12 +70,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -87,51 +85,48 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
-import kotlin.math.roundToInt
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.platform.LocalContext
-import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -140,17 +135,15 @@ import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.xixikitchen.jetpack.data.BackendConfig
 import com.xixikitchen.jetpack.data.CartLine
-import com.xixikitchen.jetpack.data.Category
 import com.xixikitchen.jetpack.data.Dish
 import com.xixikitchen.jetpack.data.Order
 import com.xixikitchen.jetpack.data.User
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import androidx.compose.runtime.snapshotFlow
 
@@ -162,10 +155,22 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    // 主题状态放在 GlassTheme 之外 —— 它就是 GlassTheme 的入参。
+    // ThemeStore 同步读,所以第一帧就是用户选的那套,不会闪一下默认配色。
+    val context = LocalContext.current
+    val themeStore = remember(context) { ThemeStore(context) }
+    var themeId by remember { mutableStateOf(themeStore.loadSelection()) }
+    var customThemes by remember { mutableStateOf(themeStore.loadCustoms()) }
+    val resolvedTheme = remember(themeId, customThemes) { resolveTheme(themeId, customThemes) }
+
+    // showSnackbar 会一直挂起到这条消息结束。用 scope.launch 才能让它活过
+    // consumeMessage() 引起的 key 变化;但必须先顶掉上一条,否则连点几下之后
+    // 消息会排成长队一条条慢慢播完。
     LaunchedEffect(state.message) {
         state.message?.let {
-            scope.launch { snack.showSnackbar(it) }
             vm.consumeMessage()
+            snack.currentSnackbarData?.dismiss()
+            scope.launch { snack.showSnackbar(it) }
         }
     }
 
@@ -177,7 +182,7 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
         )
     }
 
-    GlassTheme {
+    GlassTheme(tokens = resolvedTheme.tokens) {
         Box(Modifier.fillMaxSize()) {
             if (!state.isLoggedIn) {
                 LoginScreen(
@@ -191,7 +196,6 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
                 val backStack by nav.currentBackStackEntryAsState()
                 val currentRoute = backStack?.destination?.route ?: "kitchen"
                 val showBottomBar = currentRoute in listOf("kitchen", "orders", "discover", "mine")
-                val showLoading = state.loading && state.categories.isNotEmpty()
                 Scaffold(
                     snackbarHost = {
                         SnackbarHost(
@@ -216,9 +220,7 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
                         ) {
                             composable("kitchen") {
                                 TopLevelDestination(nav, "kitchen") {
-                                    DestinationContent(showLoading && currentRoute == "kitchen") {
-                                        KitchenScreen(state, vm)
-                                    }
+                                    KitchenScreen(state, vm)
                                 }
                             }
                             composable("orders") {
@@ -227,16 +229,12 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
                                     "orders",
                                     backdropBlur = if (currentRoute == "orderDetail/{id}") 28.dp else 0.dp
                                 ) {
-                                    DestinationContent(showLoading && currentRoute == "orders") {
-                                        OrdersScreen(state, vm, nav)
-                                    }
+                                    OrdersScreen(state, vm, nav)
                                 }
                             }
                             composable("discover") {
                                 TopLevelDestination(nav, "discover") {
-                                    DestinationContent(showLoading && currentRoute == "discover") {
-                                        DiscoverScreen(state, vm)
-                                    }
+                                    DiscoverScreen(state, vm)
                                 }
                             }
                             composable("mine") {
@@ -245,27 +243,55 @@ fun XixiKitchenApp(vm: KitchenViewModel) {
                                     "mine",
                                     backdropBlur = if (currentRoute == "admin") 28.dp else 0.dp
                                 ) {
-                                    DestinationContent(showLoading && currentRoute == "mine") {
-                                        MineScreen(state, vm, nav)
-                                    }
+                                    MineScreen(state, vm, nav)
                                 }
                             }
                             composable("admin") {
                                 NestedPageSurface {
-                                    DestinationContent(showLoading && currentRoute == "admin") {
-                                        AdminScreen(state, vm, nav)
-                                    }
+                                    AdminScreen(state, vm, nav)
+                                }
+                            }
+                            composable("settings") {
+                                NestedPageSurface {
+                                    SettingsScreen(
+                                        current = resolvedTheme,
+                                        onOpenThemePicker = { nav.navigate("settings/theme") },
+                                        onBack = { nav.popBackStack() }
+                                    )
+                                }
+                            }
+                            composable("settings/theme") {
+                                NestedPageSurface {
+                                    ThemePickerScreen(
+                                        currentId = resolvedTheme.id,
+                                        customs = customThemes,
+                                        onSelectTheme = { picked ->
+                                            themeId = picked
+                                            themeStore.saveSelection(picked)
+                                        },
+                                        onSaveCustom = { saved ->
+                                            customThemes = customThemes.filterNot { it.id == saved.id } + saved
+                                            themeStore.saveCustoms(customThemes)
+                                        },
+                                        onDeleteCustom = { removedId ->
+                                            customThemes = customThemes.filterNot { it.id == removedId }
+                                            themeStore.saveCustoms(customThemes)
+                                            // 删掉的正好是当前正在用的那套,回落到默认,
+                                            // 否则已选 id 会变成悬空值
+                                            if (themeId == removedId) {
+                                                themeId = AppTheme.DEFAULT.id
+                                                themeStore.saveSelection(themeId)
+                                            }
+                                        },
+                                        onBack = { nav.popBackStack() }
+                                    )
                                 }
                             }
                             composable("orderDetail/{id}") { entry ->
                                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: 0L
                                 LaunchedEffect(id) { vm.loadOrderDetail(id) }
                                 NestedPageSurface {
-                                    DestinationContent(
-                                        showLoading && currentRoute == "orderDetail/{id}"
-                                    ) {
-                                        OrderDetailScreen(state, vm, nav)
-                                    }
+                                    OrderDetailScreen(state, vm, nav)
                                 }
                             }
                         }
@@ -322,22 +348,6 @@ private fun NestedPageSurface(content: @Composable () -> Unit) {
     }
 }
 
-@Composable
-private fun DestinationContent(
-    showLoading: Boolean,
-    content: @Composable () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        content()
-        if (showLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center),
-                color = GlassAccent.primary
-            )
-        }
-    }
-}
-
 internal data class TopLevelNavigationPolicy(
     val popUpToRoute: String,
     val inclusive: Boolean,
@@ -387,6 +397,9 @@ private fun MainBottomBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            // edge-to-edge 下 Scaffold 的 contentWindowInsets 被清零了,
+            // 手势导航条不会自己让位 —— 悬浮胶囊会被压在系统条底下。
+            .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .glassConvex(24.dp)
     ) {
@@ -397,24 +410,23 @@ private fun MainBottomBar(
         ) {
             items.forEach { (route, label, icon) ->
                 val active = selectedRoute == route
-                val tintColor by animateColorAsState(
+                // tintColor / textColor 原本是两个一模一样的 animateColorAsState,
+                // 合并成一个,省掉一次多余的动画驱动。
+                val contentColor by animateColorAsState(
                     targetValue = if (active) GlassAccent.primary else tokens.textSecondary,
-                    label = "tintColor"
-                )
-                val textColor by animateColorAsState(
-                    targetValue = if (active) GlassAccent.primary else tokens.textSecondary,
-                    label = "textColor"
+                    animationSpec = tween(AppDuration.quick, easing = AppEase.standard),
+                    label = "navItemColor"
                 )
                 val activeBgColor by animateColorAsState(
-                    targetValue = if (active) GlassAccent.primary.copy(alpha = 0.15f) else Color.Transparent,
+                    targetValue = if (active) GlassAccent.washStrong else Color.Transparent,
+                    animationSpec = tween(AppDuration.quick, easing = AppEase.standard),
                     label = "activeBgColor"
                 )
+                // 切 tab 是被动状态变化,不是手势甩出来的 —— 不该过冲。
+                // 原来 MediumBouncy + StiffnessLow 会先冲过 1.15 再弹回来,显得松垮。
                 val iconScale by animateFloatAsState(
-                    targetValue = if (active) 1.15f else 1.0f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessLow
-                    ),
+                    targetValue = if (active) 1.08f else 1.0f,
+                    animationSpec = SpringSettle,
                     label = "iconScale"
                 )
                 Column(
@@ -422,7 +434,7 @@ private fun MainBottomBar(
                         .weight(1f)
                         .fillMaxHeight()
                         .padding(vertical = 8.dp)
-                        .noRippleClick { nav.navigateToTopLevel(route) },
+                        .noRipplePressable(pressedScale = 0.94f) { nav.navigateToTopLevel(route) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -440,14 +452,14 @@ private fun MainBottomBar(
                         Icon(
                             icon,
                             contentDescription = label,
-                            tint = tintColor,
+                            tint = contentColor,
                             modifier = Modifier.size(21.dp)
                         )
                     }
                     Spacer(Modifier.height(3.dp))
                     Text(
                         label,
-                        color = textColor,
+                        color = contentColor,
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                         style = MaterialTheme.typography.labelSmall
                     )
@@ -581,9 +593,13 @@ private fun LoginScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
-                        .glassConvex(26.dp)
-                        .clip(RoundedCornerShape(26.dp))
-                        .clickable(enabled = !loading) { onLogin(username.trim(), password) },
+                        // 顺序很重要:graphicsLayer 必须排在 glassConvex 之前,
+                        // 这样缩放包住的是整块玻璃面。反过来写就变成"玻璃不动、字在缩"。
+                        // glassConvex 内部已经 clip 过,不需要再 clip 一次。
+                        .noRipplePressable(enabled = !loading, pressedScale = 0.975f) {
+                            onLogin(username.trim(), password)
+                        }
+                        .glassConvex(26.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
@@ -802,6 +818,11 @@ private fun ErrorGlassDialog(
     AlertDialog(
         modifier = Modifier.glassConvexOverlay(24.dp),
         onDismissRequest = onDismiss,
+        // 少了这两行,AlertDialog 会用默认的不透明 surface 色盖在玻璃层上面,
+        // 圆角也会是默认的 28dp —— 跟 glassConvexOverlay(24dp) 对不齐,
+        // 玻璃效果整个白做。
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
         text = {
             Text(
                 message,
@@ -838,6 +859,8 @@ private fun RegisterDialog(
     AlertDialog(
         modifier = Modifier.glassConvexOverlay(24.dp),
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
         title = { Text("注册账号", fontWeight = FontWeight.Bold, color = tokens.textPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -864,7 +887,7 @@ private fun RegisterDialog(
                     onValueChange = { confirmPassword = it },
                     label = "确认密码",
                     isError = passwordError != null,
-                    supportingText = { passwordError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
+                    supportingText = { passwordError?.let { Text(it, color = GlassAccent.error) } }
                 )
             }
         },
@@ -917,6 +940,8 @@ private fun ResetPasswordDialog(
     AlertDialog(
         modifier = Modifier.glassConvexOverlay(24.dp),
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
         title = { Text("重置密码") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -963,6 +988,7 @@ private fun ResetPasswordDialog(
 @Composable
 private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
     val tokens = LocalGlassTokens.current
+    val reducedMotion = LocalReducedMotion.current
     var showCart by remember { mutableStateOf(false) }
     val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
     var showOrder by remember { mutableStateOf(false) }
@@ -971,19 +997,47 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
     Scaffold(
         modifier = Modifier.statusBarsPadding(),
         bottomBar = {
-            val cartScale by animateFloatAsState(
-                targetValue = if (state.cartCount > 0) 1.08f else 1.0f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
-                label = "cartScale"
-            )
+            // 购物车条:
+            //  · 进场沿底部向上"长出来",退场沿原路缩回去 —— 出入同一条路径。
+            //  · 退场比进场快(140 vs 220ms)。用户做决定时可以慢,系统响应时永远要快。
+            //  · 加一层 0.96 → 1 的缩放,让玻璃面像是真的"材质化"了,而不只是淡入。
+            //  · 关掉动画时只留一次短交叉淡化:去掉位移和缩放,保留能帮助理解的变化。
             AnimatedVisibility(
                 visible = state.cartCount > 0,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                enter = if (reducedMotion) {
+                    fadeIn(tween(150))
+                } else {
+                    fadeIn(tween(AppDuration.standard, easing = AppEase.out)) +
+                        slideInVertically(
+                            animationSpec = tween(AppDuration.standard, easing = AppEase.out),
+                            initialOffsetY = { it }
+                        ) +
+                        scaleIn(
+                            animationSpec = tween(AppDuration.standard, easing = AppEase.out),
+                            initialScale = 0.96f,
+                            transformOrigin = TransformOrigin(0.5f, 1f)
+                        )
+                },
+                exit = if (reducedMotion) {
+                    fadeOut(tween(120))
+                } else {
+                    fadeOut(tween(AppDuration.exit, easing = AppEase.out)) +
+                        slideOutVertically(
+                            animationSpec = tween(AppDuration.exit, easing = AppEase.out),
+                            targetOffsetY = { it }
+                        ) +
+                        scaleOut(
+                            animationSpec = tween(AppDuration.exit, easing = AppEase.out),
+                            targetScale = 0.96f,
+                            transformOrigin = TransformOrigin(0.5f, 1f)
+                        )
+                }
             ) {
+                val cartScale by animateFloatAsState(
+                    targetValue = if (state.cartCount > 0) 1.08f else 1.0f,
+                    animationSpec = SpringSettle,
+                    label = "cartScale"
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1000,9 +1054,7 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                             modifier = Modifier
                                 .size(44.dp)
                                 .scale(cartScale)
-                                .clip(CircleShape)
-                                .background(Color.Transparent)
-                                .clickable { showCart = true },
+                                .noRipplePressable(pressedScale = 0.9f) { showCart = true },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -1016,7 +1068,7 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                         Column(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { showCart = true }
+                                .noRipplePressable(pressedScale = 0.97f) { showCart = true }
                                 .padding(horizontal = 4.dp, vertical = 2.dp)
                         ) {
                             Text(
@@ -1058,14 +1110,29 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                 modifier = Modifier.fillMaxSize()
             ) {
                 Spacer(Modifier.height(8.dp))
-                var searchInput by remember(state.searchKeyword) { mutableStateOf(state.searchKeyword) }
+
+                // 输入框的文本状态必须是**稳定**的,不能写成 remember(state.searchKeyword)。
+                // 下面 LaunchedEffect(Unit) 里的 snapshotFlow 只在第一次组合时建立,
+                // 它捕获的是当时那个 MutableState 实例。而 remember 的 key 一变就会换成
+                // 新实例 —— 写入进了新对象,flow 还在盯旧的,于是搜完第一次就彻底失灵。
+                var searchInput by remember { mutableStateOf(state.searchKeyword) }
+                val searchFocus = remember { FocusRequester() }
+
                 @OptIn(FlowPreview::class)
                 LaunchedEffect(Unit) {
                     snapshotFlow { searchInput }
-                        .drop(1)
-                        .debounce(300)
+                        .drop(1)                  // 跳过初始值,进页面别先搜一次
+                        .debounce(300)            // 等打字停下来再发请求
+                        .distinctUntilChanged()   // 删掉又打回同一个词,不重复请求
                         .collect { vm.search(it) }
                 }
+
+                // 切分类时后端会把搜索清空,输入框也得跟着清 ——
+                // 否则会出现"显示着分类的菜、搜索框里却还留着上一次的字"的错位。
+                LaunchedEffect(state.activeCategoryId) {
+                    if (searchInput.isNotEmpty()) searchInput = ""
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1075,12 +1142,28 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                 ) {
                     OutlinedTextField(
                         value = searchInput,
-                        onValueChange = { newValue ->
-                            searchInput = newValue
+                        onValueChange = { searchInput = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(searchFocus),
+                        // 不放 placeholder:空着就空着
+                        trailingIcon = {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .noRipplePressable(pressedScale = 0.88f) {
+                                        searchFocus.requestFocus()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "搜索",
+                                    tint = GlassAccent.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("搜索你想吃的菜品...", color = tokens.textSecondary) },
-                        leadingIcon = { Icon(Icons.Default.Search, null, tint = GlassAccent.primary) },
                         singleLine = true,
                         shape = RoundedCornerShape(22.dp),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
@@ -1125,11 +1208,11 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .noRipplePressable(pressedScale = 0.97f) { vm.selectCategory(category.id) }
                                         .then(
                                             if (active) Modifier.glassConvex(16.dp)
                                             else Modifier.glassConcave(16.dp)
                                         )
-                                        .clickable { vm.selectCategory(category.id) }
                                         .padding(vertical = 14.dp, horizontal = 10.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -1198,26 +1281,14 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val model = realImageUrl(dish.imageUrl)
-                if (!model.isNullOrBlank()) {
-                    AsyncImage(
-                        model = model,
-                        contentDescription = dish.name,
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(GlassAccent.primary.copy(alpha = 0.08f)),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                } else {
-                    FallbackFoodAvatar(
-                        dishId = dish.id,
-                        dishName = dish.name,
-                        size = 80.dp,
-                        emojiSize = 38.sp,
-                        cornerRadius = 18.dp
-                    )
-                }
+                DishThumbnail(
+                    dishId = dish.id,
+                    dishName = dish.name,
+                    imageUrl = dish.imageUrl,
+                    size = 80.dp,
+                    emojiSize = 38.sp,
+                    cornerRadius = 18.dp
+                )
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -1225,46 +1296,30 @@ private fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
                         color = tokens.textPrimary
                     )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "月售 ${dish.monthlySales ?: 0}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = tokens.textSecondary
-                    )
                 }
-                var isPressed by remember { mutableStateOf(false) }
-                val buttonScale by animateFloatAsState(
-                    targetValue = if (isPressed) 0.82f else 1.0f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessLow
-                    ),
-                    label = "buttonScale"
-                )
-                val scope = rememberCoroutineScope()
-
+                // 原来是"点击之后补一个 80ms 的缩放脉冲":反馈发生在手指抬起之后,
+                // 而且 0.82 + MediumBouncy/LowStiffness 又大又软,像橡皮。
+                // 现在缩放直接绑在真实按压状态上 —— pointer-down 立刻响应,松手立刻回位。
+                // 触摸区从 38dp 放大到 44dp:视觉不变,手指不必瞄得那么准。
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .scale(buttonScale)
-                        .glassConvex(19.dp)
-                        .clip(CircleShape)
-                        .clickable {
-                            scope.launch {
-                                isPressed = true
-                                kotlinx.coroutines.delay(80)
-                                isPressed = false
-                            }
-                            onAdd()
-                        },
+                        .size(44.dp)
+                        .noRipplePressable(pressedScale = 0.88f, onClick = onAdd),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "添加",
-                        tint = GlassAccent.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .glassConvex(19.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "添加",
+                            tint = GlassAccent.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -1325,10 +1380,9 @@ private fun CartDialog(cart: List<CartLine>, onDismiss: () -> Unit, onChange: (L
                             )
                             Box(
                                 modifier = Modifier
-                                    .size(30.dp)
-                                    .glassConvexOverlay(15.dp)
-                                    .clip(CircleShape)
-                                    .clickable { onChange(line.dish.id, -1) },
+                                    .size(34.dp)
+                                    .noRipplePressable(pressedScale = 0.9f) { onChange(line.dish.id, -1) }
+                                    .glassConvexOverlay(17.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -1346,10 +1400,9 @@ private fun CartDialog(cart: List<CartLine>, onDismiss: () -> Unit, onChange: (L
                             )
                             Box(
                                 modifier = Modifier
-                                    .size(30.dp)
-                                    .glassConvexOverlay(15.dp)
-                                    .clip(CircleShape)
-                                    .clickable { onChange(line.dish.id, 1) },
+                                    .size(34.dp)
+                                    .noRipplePressable(pressedScale = 0.9f) { onChange(line.dish.id, 1) }
+                                    .glassConvexOverlay(17.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -1410,11 +1463,11 @@ private fun SubmitOrderDialog(state: KitchenUiState, onDismiss: () -> Unit, onSu
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
+                                .noRipplePressable(pressedScale = 0.95f) { selected = user.id }
                                 .then(
                                     if (isSelected) Modifier.glassConvexOverlay(18.dp)
                                     else Modifier.glassConcaveOverlay(18.dp)
                                 )
-                                .clickable { selected = user.id }
                                 .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             val avatarUrl = user.avatarUrl
@@ -1548,9 +1601,6 @@ private fun OrdersScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHo
                     }
                     if (state.orders.isNotEmpty()) {
                         item {
-                            CuteBackyardGardenDecor(modifier = Modifier.padding(vertical = 16.dp))
-                        }
-                        item {
                             Spacer(Modifier.height(24.dp))
                         }
                     }
@@ -1570,12 +1620,11 @@ private fun StatusFilterChip(
     val tokens = LocalGlassTokens.current
     Box(
         modifier = modifier
+            .noRipplePressable(pressedScale = 0.96f, onClick = onClick)
             .then(
                 if (active) Modifier.glassConvex(16.dp)
                 else Modifier.glassConcave(16.dp)
             )
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -1592,20 +1641,14 @@ private fun StatusFilterChip(
 @Composable
 private fun OrderCard(order: Order, state: KitchenUiState, onOpen: () -> Unit, onAction: (String) -> Unit) {
     val tokens = LocalGlassTokens.current
-    val (statusBg, statusFg) = when (order.status) {
-        0 -> Color(0xFFFFECE0) to Color(0xFFFF8A43)  // Pending (Orange)
-        1 -> Color(0xFFE3F2FD) to Color(0xFF1E88E5)  // Accepted/InProgress (Blue)
-        2 -> Color(0xFFE8F5E9) to Color(0xFF43A047)  // Completed (Green)
-        3 -> Color(0xFFFFEBEE) to Color(0xFFE53935)  // Rejected (Red)
-        else -> Color(0xFFF5F5F5) to Color(0xFF757575)
-    }
+    val statusColors = orderStatusColors(order.status)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            // 整张卡片都是热区,所以缩放要更克制 —— 0.97 放在全宽卡片上会像在弹跳。
+            .noRipplePressable(pressedScale = 0.985f, onClick = onOpen)
             .glassConvex(20.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onOpen)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1620,13 +1663,13 @@ private fun OrderCard(order: Order, state: KitchenUiState, onOpen: () -> Unit, o
                 )
                 Box(
                     modifier = Modifier
-                        .background(statusBg, RoundedCornerShape(10.dp))
+                        .background(statusColors.wash, RoundedCornerShape(10.dp))
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = statusText(order.status),
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                        color = statusFg
+                        color = statusColors.on
                     )
                 }
             }
@@ -1680,7 +1723,7 @@ private fun OrderCard(order: Order, state: KitchenUiState, onOpen: () -> Unit, o
                                 modifier = Modifier
                                     .size(44.dp)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFFFFF0F2)),
+                                    .background(GlassAccent.wash),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -1707,7 +1750,7 @@ private fun OrderCard(order: Order, state: KitchenUiState, onOpen: () -> Unit, o
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFFAF6F0).copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                    .background(GlassAccent.wash, RoundedCornerShape(14.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1801,9 +1844,8 @@ private fun OrderDetailScreen(state: KitchenUiState, vm: KitchenViewModel, nav: 
         containerColor = Color.Transparent
     ) { padding ->
         if (order == null) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = GlassAccent.primary)
-            }
+            // 详情还在拉的这段时间不转圈,就让它空着(顶栏的返回键一直在)。
+            Box(Modifier.fillMaxSize().padding(padding))
         } else {
             LazyColumn(
                 modifier = Modifier
@@ -1813,19 +1855,14 @@ private fun OrderDetailScreen(state: KitchenUiState, vm: KitchenViewModel, nav: 
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 item {
-                    val (statusBg, statusFg) = when (order.status) {
-                        0 -> Color(0xFFFFECE0) to Color(0xFFFF8A43)
-                        1 -> Color(0xFFE3F2FD) to Color(0xFF1E88E5)
-                        2 -> Color(0xFFE8F5E9) to Color(0xFF43A047)
-                        3 -> Color(0xFFFFEBEE) to Color(0xFFE53935)
-                        else -> Color(0xFFF5F5F5) to Color(0xFF757575)
-                    }
+                    val statusColors = orderStatusColors(order.status)
 
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, Color(0xFFF5EFE6)),
-                        modifier = Modifier.shadow(2.dp, RoundedCornerShape(20.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            // 订单列表用玻璃面,详情页却用 Material Card + 2dp 阴影 + 米色描边 ——
+                            // 同一件事物长了两副面孔。统一成玻璃。
+                            .glassConvex(20.dp)
                     ) {
                         Column(Modifier.padding(16.dp)) {
                             Row(
@@ -1840,12 +1877,12 @@ private fun OrderDetailScreen(state: KitchenUiState, vm: KitchenViewModel, nav: 
                                 )
                                 Box(
                                     modifier = Modifier
-                                        .background(statusBg, RoundedCornerShape(8.dp))
+                                        .background(statusColors.wash, RoundedCornerShape(8.dp))
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         statusText(order.status),
-                                        color = statusFg,
+                                        color = statusColors.on,
                                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
                                     )
                                 }
@@ -1863,7 +1900,7 @@ private fun OrderDetailScreen(state: KitchenUiState, vm: KitchenViewModel, nav: 
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFFFAF6F0).copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                                    .background(GlassAccent.wash, RoundedCornerShape(14.dp))
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1892,14 +1929,14 @@ private fun OrderDetailScreen(state: KitchenUiState, vm: KitchenViewModel, nav: 
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(Color(0xFFFFF8F5), RoundedCornerShape(12.dp))
-                                        .border(BorderStroke(1.dp, Color(0xFFFFEADF)), RoundedCornerShape(12.dp))
+                                        .background(GlassAccent.wash, RoundedCornerShape(12.dp))
+                                        .border(BorderStroke(1.dp, GlassAccent.edge), RoundedCornerShape(12.dp))
                                         .padding(12.dp)
                                 ) {
                                     Text(
                                         "备注: ${order.remark}",
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                        color = Color(0xFFD35400)
+                                        color = GlassAccent.primaryDark
                                     )
                                 }
                             }
@@ -1917,37 +1954,24 @@ private fun OrderDetailScreen(state: KitchenUiState, vm: KitchenViewModel, nav: 
                 }
 
                 items(order.items) { item ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, Color(0xFFF5EFE6)),
-                        modifier = Modifier.shadow(2.dp, RoundedCornerShape(20.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .glassConvex(20.dp)
                     ) {
                         Column(Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val model = realImageUrl(item.dishImage)
-                                if (!model.isNullOrBlank()) {
-                                    AsyncImage(
-                                        model = model,
-                                        contentDescription = item.dishName,
-                                        modifier = Modifier
-                                            .size(50.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(Color.Transparent),
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                    )
-                                } else {
-                                    FallbackFoodAvatar(
-                                        dishId = item.dishId,
-                                        dishName = item.dishName,
-                                        size = 50.dp,
-                                        emojiSize = 24.sp,
-                                        cornerRadius = 10.dp
-                                    )
-                                }
+                                DishThumbnail(
+                                    dishId = item.dishId,
+                                    dishName = item.dishName,
+                                    imageUrl = item.dishImage,
+                                    size = 50.dp,
+                                    emojiSize = 24.sp,
+                                    cornerRadius = 10.dp
+                                )
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(
@@ -2126,12 +2150,13 @@ private fun MineScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHost
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassConvex(24.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .combinedClickable(
-                                onClick = {},
-                                onLongClick = { editProfile = true }
+                            // 编辑入口只有长按,不放任何视觉提示。
+                            .noRippleCombinedPressable(
+                                pressedScale = 0.985f,
+                                onLongClick = { editProfile = true },
+                                onClick = {}
                             )
+                            .glassConvex(24.dp)
                             .padding(20.dp)
                     ) {
                         Row(
@@ -2180,6 +2205,7 @@ private fun MineScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHost
                         if (state.isAdmin) {
                             ListAction("管理后台", Icons.Default.AdminPanelSettings) { nav.navigate("admin") }
                         }
+                        ListAction("设置", Icons.Default.Settings) { nav.navigate("settings") }
                         ListAction("退出登录", Icons.Default.Person) { vm.logout() }
                     }
                 }
@@ -2203,43 +2229,18 @@ private fun MineScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHost
 }
 
 @Composable
-private fun Stat(label: String, value: Int) {
-    val tokens = LocalGlassTokens.current
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFFFFF7F8))
-            .border(BorderStroke(1.dp, Color(0xFFFFECEF)), RoundedCornerShape(14.dp))
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-    ) {
-        Text(
-            text = "$value",
-            color = GlassAccent.primary,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = label,
-            color = tokens.textSecondary,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
-        )
-    }
-}
-
-@Composable
-private fun ListAction(
+fun ListAction(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    value: String? = null,
     onClick: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .noRipplePressable(pressedScale = 0.985f, onClick = onClick)
             .glassConvex(20.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier
@@ -2250,7 +2251,7 @@ private fun ListAction(
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .background(Color(0xFFFFF0F2), CircleShape),
+                    .background(GlassAccent.wash, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -2267,6 +2268,14 @@ private fun ListAction(
                 color = tokens.textPrimary,
                 modifier = Modifier.weight(1f)
             )
+            if (value != null) {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = tokens.textSecondary
+                )
+                Spacer(Modifier.width(6.dp))
+            }
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
@@ -2345,14 +2354,28 @@ private fun ProfileDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Circular Avatar with edit overlay and picker launcher
+                // 圆形头像 + 选择器。
+                // 编辑遮罩改成"只在按下的那一刻出现":之前是一层常驻的 15% 黑罩 + 铅笔,
+                // 一直盖在用户自己的照片上,看起来像这个头像被禁用了。
+                val avatarInteraction = remember { MutableInteractionSource() }
+                val avatarPressed by avatarInteraction.collectIsPressedAsState()
+                val editScrimAlpha by animateFloatAsState(
+                    targetValue = if (avatarPressed && !uploading) 1f else 0f,
+                    animationSpec = SpringSettle,
+                    label = "avatarScrim"
+                )
                 Box(
                     modifier = Modifier
                         .size(90.dp)
+                        .pressScale(avatarInteraction, enabled = !uploading, pressedScale = 0.96f)
                         .clip(CircleShape)
-                        .background(Color(0xFFFFECEF))
-                        .border(BorderStroke(2.dp, GlassAccent.primary), CircleShape)
-                        .clickable(enabled = !uploading) {
+                        .background(GlassAccent.wash)
+                        .border(BorderStroke(2.dp, GlassAccent.stroke), CircleShape)
+                        .clickable(
+                            interactionSource = avatarInteraction,
+                            indication = null,
+                            enabled = !uploading
+                        ) {
                             launcher.launch("image/*")
                         },
                     contentAlignment = Alignment.Center
@@ -2374,11 +2397,12 @@ private fun ProfileDialog(
                         )
                     }
 
-                    // Edit Badge overlay at bottom of avatar circle
+                    // 按下时才浮现的"更换图片"提示
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.15f)),
+                            .graphicsLayer { alpha = editScrimAlpha }
+                            .background(Color.Black.copy(alpha = 0.28f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -2448,6 +2472,46 @@ private fun realImageUrl(url: String?): String? {
     return BackendConfig.resolveUrl(url)
 }
 
+/**
+ * 菜品缩略图。
+ *
+ * 之前只在 url 为空时才回退到 emoji 头像 —— 图片 404 或断网时会留一块空白,
+ * 用户看到的就是"界面坏了"。现在加载失败也回退。
+ * 顺带把三个地方重复的 if/else 收成一处。
+ */
+@Composable
+private fun DishThumbnail(
+    dishId: Long,
+    dishName: String?,
+    imageUrl: String?,
+    size: androidx.compose.ui.unit.Dp,
+    emojiSize: androidx.compose.ui.unit.TextUnit,
+    cornerRadius: androidx.compose.ui.unit.Dp
+) {
+    val model = realImageUrl(imageUrl)
+    var failed by remember(model) { mutableStateOf(false) }
+    if (model.isNullOrBlank() || failed) {
+        FallbackFoodAvatar(
+            dishId = dishId,
+            dishName = dishName,
+            size = size,
+            emojiSize = emojiSize,
+            cornerRadius = cornerRadius
+        )
+    } else {
+        AsyncImage(
+            model = model,
+            contentDescription = dishName,
+            onError = { failed = true },
+            modifier = Modifier
+                .size(size)
+                .clip(RoundedCornerShape(cornerRadius))
+                .background(GlassAccent.wash),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+    }
+}
+
 private fun statusText(status: Int): String = when (status) {
     0 -> "待接单"
     1 -> "已接单"
@@ -2459,10 +2523,10 @@ private fun statusText(status: Int): String = when (status) {
 @Composable
 private fun CustomSnackbar(message: String) {
     val isSuccess = !message.contains("失败") && !message.contains("错误") && !message.contains("不匹配") && !message.contains("无")
-    val bgColor = if (isSuccess) Color(0xFFFFF0F2) else Color(0xFFFFF2F2)
-    val borderColor = if (isSuccess) GlassAccent.primary else Color(0xFFFFD2D2)
+    // 原来这里算了 bgColor / borderColor 两个变量,但一个都没用上
+    // (背景其实是 glassConvex 画的)。删掉,文字色统一走 token。
     val icon = if (isSuccess) "✨" else "⚠️"
-    val textColor = if (isSuccess) GlassAccent.primaryDark else Color(0xFFD32F2F)
+    val textColor = if (isSuccess) GlassAccent.primaryDark else GlassAccent.errorDeep
 
     Box(
         modifier = Modifier
@@ -2508,7 +2572,7 @@ private fun UserMiniAvatar(user: User?) {
             modifier = Modifier
                 .size(20.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFFFF0F2)),
+                .background(GlassAccent.wash),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -2523,6 +2587,11 @@ private fun UserMiniAvatar(user: User?) {
 
 @Composable
 private fun FloatingParticlesBackground() {
+    // 装饰性的无限循环动画必须尊重系统的"移除动画"设置。
+    // Compose 的 animate*AsState / Animatable 会自动跟随,但 rememberInfiniteTransition
+    // 走的是 withFrameNanos,完全不看这个开关 —— 只能在这里手动关掉。
+    if (LocalReducedMotion.current) return
+
     val transition = rememberInfiniteTransition(label = "particles")
     val items = remember {
         listOf(
@@ -2563,14 +2632,17 @@ private fun FloatingParticlesBackground() {
                     label = "scale"
                 )
 
-                val rotation by transition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 360f,
+                // 原来每个水果都在缓缓自转一整圈(5.5~6.9 秒一轮 ≈ 0.15Hz)。
+                // 接近 0.2Hz 的缓慢循环运动正是最容易引起前庭不适的那一类,
+                // 视觉上读起来也像"转盘"。改成 ±9° 的轻微摇摆 —— 是"飘",不是"转"。
+                val sway by transition.animateFloat(
+                    initialValue = -9f,
+                    targetValue = 9f,
                     animationSpec = infiniteRepeatable(
-                        animation = tween(durationMillis = item.rotationDuration, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart
+                        animation = tween(durationMillis = item.rotationDuration, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
                     ),
-                    label = "rotation"
+                    label = "sway"
                 )
 
                 Box(
@@ -2580,7 +2652,7 @@ private fun FloatingParticlesBackground() {
                             translationY = item.yFraction * height + offsetY
                             scaleX = scale
                             scaleY = scale
-                            rotationZ = rotation
+                            rotationZ = sway
                             alpha = 0.12f
                         }
                 ) {
@@ -2678,482 +2750,4 @@ private fun MenuShimmerPlaceholder() {
             }
         }
     }
-}
-
-@Composable
-private fun DecorativeEmptyState(
-    message: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
-    val transition = rememberInfiniteTransition(label = "emptyPulse")
-    val scale by transition.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseScale"
-    )
-    val floatY by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = -12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "floatY"
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-            border = BorderStroke(1.dp, Color(0xFFFFF0F2)),
-            shape = RoundedCornerShape(24.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .shadow(4.dp, RoundedCornerShape(24.dp))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 28.dp, horizontal = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
-                            translationY = floatY
-                        }
-                        .size(90.dp)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(Color(0xFFFFF0F2), Color.Transparent)
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Color(0xFFFF5E7E), // GlassAccent.primary
-                        modifier = Modifier.size(44.dp)
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    text = message,
-                    color = Color(0xFF3C3333), // tokens.textPrimary
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "在温暖的小屋里静候佳音~",
-                    color = Color(0xFF8C7E7E).copy(alpha = 0.7f), // tokens.textSecondary
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-        Spacer(Modifier.height(20.dp))
-        CuteBackyardGardenDecor(
-            modifier = Modifier.padding(top = 12.dp),
-            height = 360.dp
-        )
-    }
-}
-
-private val SWEET_QUOTES = listOf(
-    "大厨辛苦啦！给宝贝比个大大的心 ❤️",
-    "今天想吃你做的可乐鸡翅啦~ 🍽️",
-    "每一道菜，都是我爱你的证明呀~ 🥰",
-    "被你喂饱的感觉，真的超级超级幸福！✨",
-    "宝贝，今天也要按时好好吃饭哦！🍓",
-    "叮咚！你的今日份甜度已超标~ 🥤",
-    "下一顿饭，换我掌勺来投喂你吧！🍳",
-    "不管吃什么，和你在一起就最美味啦 🐾",
-    "柴米油盐酱醋茶，每天都有你在身边 ❤"
-)
-
-@Composable
-private fun CuteKitchenSteamDecor(modifier: Modifier = Modifier) {
-    val tokens = LocalGlassTokens.current
-    val transition = rememberInfiniteTransition(label = "steam")
-
-    val progress1 by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2600, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "steam1"
-    )
-
-    val progress2 by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, delayMillis = 800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "steam2"
-    )
-
-    val progress3 by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, delayMillis = 1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "steam3"
-    )
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(130.dp),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        // Shelf at the bottom
-        Box(
-            modifier = Modifier
-                .width(160.dp)
-                .height(6.dp)
-                .background(Color(0xFFE6D2C0), RoundedCornerShape(3.dp))
-                .align(Alignment.BottomCenter)
-        )
-
-        // Peeking bunny behind the pot
-        Box(
-            modifier = Modifier
-                .padding(bottom = 6.dp, end = 50.dp)
-                .size(44.dp)
-                .align(Alignment.BottomCenter)
-        ) {
-            // Bunny ears
-            Box(
-                modifier = Modifier
-                    .padding(start = 10.dp)
-                    .width(8.dp)
-                    .height(20.dp)
-                    .background(Color.White, RoundedCornerShape(4.dp))
-            )
-            Box(
-                modifier = Modifier
-                    .padding(start = 26.dp)
-                    .width(8.dp)
-                    .height(20.dp)
-                    .background(Color.White, RoundedCornerShape(4.dp))
-            )
-            // Bunny head
-            Box(
-                modifier = Modifier
-                    .padding(top = 10.dp)
-                    .fillMaxSize()
-                    .background(Color.White, CircleShape)
-                    .border(1.dp, Color(0xFFF7ECEF), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                // Bunny face (two dots and blush)
-                Row(
-                    modifier = Modifier.padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(modifier = Modifier.size(3.dp).background(tokens.textPrimary, CircleShape))
-                    Box(modifier = Modifier.size(3.dp).background(tokens.textPrimary, CircleShape))
-                }
-            }
-        }
-
-        // Cooking Pot Body
-        Box(
-            modifier = Modifier
-                .padding(bottom = 6.dp)
-                .width(76.dp)
-                .height(48.dp)
-                .background(
-                    GlassAccent.primary,
-                    RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp, topStart = 4.dp, topEnd = 4.dp)
-                )
-                .align(Alignment.BottomCenter)
-        ) {
-            // Pot handle left
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .offset(x = (-6).dp)
-                    .size(12.dp)
-                    .border(2.dp, GlassAccent.primary, CircleShape)
-            )
-            // Pot handle right
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .offset(x = 6.dp)
-                    .size(12.dp)
-                    .border(2.dp, GlassAccent.primary, CircleShape)
-            )
-        }
-
-        // Pot Lid
-        Box(
-            modifier = Modifier
-                .padding(bottom = 54.dp)
-                .width(82.dp)
-                .height(8.dp)
-                .background(GlassAccent.primaryBright, RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                .align(Alignment.BottomCenter)
-        ) {
-            // Lid knob
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-4).dp)
-                    .width(14.dp)
-                    .height(6.dp)
-                    .background(GlassAccent.primaryBright, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-            )
-        }
-
-        // Animated steam/emoji particles
-        val steamItems = listOf(
-            Triple("❤️", progress1, -12),
-            Triple("✨", progress2, 16),
-            Triple("💨", progress3, 0)
-        )
-
-        steamItems.forEach { (emoji, progress, xOffset) ->
-            if (progress > 0f && progress < 1f) {
-                val yPosVal = -60f * progress - 56f
-                val xSwayVal = (kotlin.math.sin(progress.toDouble() * Math.PI * 2.0).toFloat() * 12f) + xOffset
-                val alphaVal = if (progress < 0.2f) {
-                    progress / 0.2f
-                } else if (progress > 0.7f) {
-                    (1f - progress) / 0.3f
-                } else {
-                    1f
-                }
-
-                Text(
-                    text = emoji,
-                    fontSize = 16.sp,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .graphicsLayer {
-                            translationY = yPosVal * density
-                            translationX = xSwayVal * density
-                            alpha = alphaVal
-                            scaleX = 0.8f + progress * 0.4f
-                            scaleY = 0.8f + progress * 0.4f
-                        }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SweetInteractMascot(modifier: Modifier = Modifier) {
-    val tokens = LocalGlassTokens.current
-    var showBubble by remember { mutableStateOf(false) }
-    var bubbleText by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-    var clickTrigger by remember { mutableStateOf(0) }
-    var isClicked by remember { mutableStateOf(false) }
-    var bubbleJob by remember { mutableStateOf<Job?>(null) }
-
-    val scale by animateFloatAsState(
-        targetValue = if (isClicked) 1.3f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        finishedListener = { if (isClicked) isClicked = false },
-        label = "mascotScale"
-    )
-
-    // Gentle float idle animation
-    val transition = rememberInfiniteTransition(label = "mascotFloat")
-    val floatY by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = -6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "mascotFloatY"
-    )
-
-    val heartProgress = remember { Animatable(0f) }
-    LaunchedEffect(clickTrigger) {
-        if (clickTrigger > 0) {
-            isClicked = true
-            heartProgress.snapTo(0f)
-            heartProgress.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(800, easing = FastOutLinearInEasing)
-            )
-        }
-    }
-
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.BottomEnd
-    ) {
-        // Speech Bubble
-        AnimatedVisibility(
-            visible = showBubble,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { 10 }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { 10 }),
-            modifier = Modifier
-                .padding(bottom = 60.dp, end = 4.dp)
-                .align(Alignment.BottomEnd)
-        ) {
-            Surface(
-                color = Color(0xFFFFF2F4),
-                border = BorderStroke(1.dp, Color(0xFFFFD6DC)),
-                shape = RoundedCornerShape(16.dp, 16.dp, 2.dp, 16.dp),
-                modifier = Modifier
-                    .width(180.dp)
-                    .shadow(4.dp, RoundedCornerShape(16.dp, 16.dp, 2.dp, 16.dp))
-            ) {
-                Text(
-                    text = bubbleText,
-                    color = tokens.textPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(12.dp)
-                )
-            }
-        }
-
-        // Particle hearts container
-        Box(
-            modifier = Modifier
-                .padding(bottom = 26.dp, end = 26.dp)
-                .align(Alignment.BottomEnd),
-            contentAlignment = Alignment.Center
-        ) {
-            val progress = heartProgress.value
-            if (progress > 0f && progress < 1f) {
-                val angles = listOf(-60f, -40f, -20f, 0f, 20f, 40f, 60f)
-                val distances = listOf(60f, 80f, 70f, 90f, 75f, 85f, 65f)
-                val emojis = listOf("❤️", "💖", "✨", "💕", "❤️", "🌸", "✨")
-
-                angles.forEachIndexed { index, angle ->
-                    val distVal = distances[index] * progress
-                    val angleRad = Math.toRadians(angle.toDouble())
-                    val xVal = distVal * kotlin.math.sin(angleRad).toFloat()
-                    val yVal = -distVal * kotlin.math.cos(angleRad).toFloat()
-                    val alphaVal = 1f - progress
-
-                    Text(
-                        text = emojis[index],
-                        fontSize = 14.sp,
-                        modifier = Modifier
-                            .graphicsLayer {
-                                translationX = xVal * density
-                                translationY = yVal * density
-                                alpha = alphaVal
-                                scaleX = 1f - progress * 0.4f
-                                scaleY = 1f - progress * 0.4f
-                            }
-                    )
-                }
-            }
-        }
-
-        // Mascot Main Circle
-        Box(
-            modifier = Modifier
-                .graphicsLayer {
-                    translationY = floatY
-                    scaleX = scale
-                    scaleY = scale
-                }
-                .size(52.dp)
-                .shadow(6.dp, CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFFFFECEF), Color(0xFFFFD6DC))
-                    ),
-                    CircleShape
-                )
-                .border(2.dp, Color.White, CircleShape)
-                .clickable {
-                    clickTrigger += 1
-                    bubbleText = SWEET_QUOTES.random()
-                    showBubble = true
-                    bubbleJob?.cancel()
-                    bubbleJob = scope.launch {
-                        delay(4000)
-                        showBubble = false
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "🐱",
-                fontSize = 26.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun DraggableCuteElement(
-    key: String,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    val context = LocalContext.current
-    val prefs = remember(context) { context.getSharedPreferences("cute_decor_prefs", android.content.Context.MODE_PRIVATE) }
-    val keyX = "decor_${key}_x"
-    val keyY = "decor_${key}_y"
-
-    var offsetX by remember { mutableStateOf(prefs.getFloat(keyX, 0f)) }
-    var offsetY by remember { mutableStateOf(prefs.getFloat(keyY, 0f)) }
-
-    Box(
-        modifier = modifier
-            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .pointerInput(key) {
-                detectDragGestures(
-                    onDragEnd = {
-                        prefs.edit().putFloat(keyX, offsetX).putFloat(keyY, offsetY).apply()
-                    },
-                    onDragCancel = {
-                        prefs.edit().putFloat(keyX, offsetX).putFloat(keyY, offsetY).apply()
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        offsetX += dragAmount.x
-                        offsetY += dragAmount.y
-                    }
-                )
-            }
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun CuteBackyardGardenDecor(
-    modifier: Modifier = Modifier,
-    height: androidx.compose.ui.unit.Dp = 200.dp
-) {
-    // Empty per user request
 }

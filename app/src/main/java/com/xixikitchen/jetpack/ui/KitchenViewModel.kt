@@ -203,7 +203,14 @@ class KitchenViewModel @Inject constructor(
 
     fun search(keyword: String) = runAction {
         val trimmed = keyword.trim()
-        _state.update { it.copy(searchKeyword = keyword, searchResults = if (trimmed.isEmpty()) emptyList() else repo.searchDishes(token(), trimmed)) }
+        // 存 trim 之后的词。只敲了空格不该被当成"正在搜索",
+        // 否则列表会显示"没有找到匹配的菜品",而用户其实什么都没搜。
+        _state.update {
+            it.copy(
+                searchKeyword = trimmed,
+                searchResults = if (trimmed.isEmpty()) emptyList() else repo.searchDishes(token(), trimmed)
+            )
+        }
     }
 
     fun addRandomDish() = runAction {

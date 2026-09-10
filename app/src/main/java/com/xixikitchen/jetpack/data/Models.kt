@@ -34,7 +34,6 @@ data class User(
 data class Category(
     val id: Long = 0,
     val name: String = "",
-    val icon: String? = null,
     val sortOrder: Int? = null
 )
 
