@@ -40,14 +40,8 @@ interface ApiService {
     @GET("/api/dish/list")
     suspend fun dishes(@Header("Authorization") token: String, @Query("categoryId") categoryId: Long? = null): ApiResponse<List<Dish>>
 
-    @GET("/api/dish/detail/{id}")
-    suspend fun dishDetail(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<Dish>
-
     @GET("/api/dish/search")
     suspend fun searchDishes(@Header("Authorization") token: String, @Query("keyword") keyword: String): ApiResponse<List<Dish>>
-
-    @GET("/api/dish/random")
-    suspend fun randomDishes(@Header("Authorization") token: String, @Query("count") count: Int = 1): ApiResponse<List<Dish>>
 
     @POST("/api/dish/add")
     suspend fun addDish(@Header("Authorization") token: String, @Body dish: Dish): ApiResponse<String>
@@ -86,9 +80,6 @@ interface ApiService {
 
     @PUT("/api/order/complete/{id}")
     suspend fun completeOrder(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
-
-    @GET("/api/order/stats")
-    suspend fun orderStats(@Header("Authorization") token: String): ApiResponse<OrderStats>
 
     @GET("/api/announcement/list")
     suspend fun announcements(@Header("Authorization") token: String): ApiResponse<List<Announcement>>

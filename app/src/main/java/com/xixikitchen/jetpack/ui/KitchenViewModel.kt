@@ -11,7 +11,6 @@ import com.xixikitchen.jetpack.data.KitchenRepository
 import com.xixikitchen.jetpack.data.Order
 import com.xixikitchen.jetpack.data.OrderCreateItem
 import com.xixikitchen.jetpack.data.OrderCreateRequest
-import com.xixikitchen.jetpack.data.OrderStats
 import com.xixikitchen.jetpack.data.ProfileUpdateRequest
 import com.xixikitchen.jetpack.data.Session
 import com.xixikitchen.jetpack.data.User
@@ -42,7 +41,6 @@ data class KitchenUiState(
     val orderStatus: Int? = null,
     val selectedOrder: Order? = null,
     val announcements: List<Announcement> = emptyList(),
-    val stats: OrderStats = OrderStats(),
     val adminUsers: List<User> = emptyList(),
     val adminOrders: List<Order> = emptyList(),
     val backendBaseUrl: String = BackendConfig.DEFAULT_BASE_URL
@@ -76,7 +74,6 @@ class KitchenViewModel @Inject constructor(
                     refreshHome()
                     refreshOrders()
                     refreshAnnouncements()
-                    refreshStats()
                 }
             }
         }
@@ -156,26 +153,6 @@ class KitchenViewModel @Inject constructor(
         notify("密码重置成功")
     }
 
-    fun saveBackendBaseUrl(baseUrl: String) = runAction {
-        val normalized = repo.saveBackendBaseUrl(baseUrl)
-        BackendConfig.setCurrentBaseUrl(normalized)
-        _state.update {
-            it.copy(
-                backendBaseUrl = normalized,
-                categories = emptyList(),
-                dishes = emptyList(),
-                searchResults = emptyList(),
-                recipients = emptyList(),
-                orders = emptyList(),
-                selectedOrder = null,
-                announcements = emptyList(),
-                adminUsers = emptyList(),
-                adminOrders = emptyList()
-            )
-        }
-        notify("后端地址已保存")
-    }
-
     fun logout() = runAction {
         repo.logout()
         _state.update { KitchenUiState(backendBaseUrl = it.backendBaseUrl) }
@@ -210,16 +187,6 @@ class KitchenViewModel @Inject constructor(
                 searchKeyword = trimmed,
                 searchResults = if (trimmed.isEmpty()) emptyList() else repo.searchDishes(token(), trimmed)
             )
-        }
-    }
-
-    fun addRandomDish() = runAction {
-        val dish = repo.randomDishes(token()).firstOrNull()
-        if (dish != null) {
-            addToCart(dish)
-            notify("已随机加入一道菜")
-        } else {
-            notify("暂无菜品")
         }
     }
 
@@ -289,10 +256,6 @@ class KitchenViewModel @Inject constructor(
 
     fun refreshAnnouncements() = runAction {
         _state.update { it.copy(announcements = repo.announcements(token())) }
-    }
-
-    fun refreshStats() = runAction {
-        _state.update { it.copy(stats = repo.orderStats(token())) }
     }
 
     fun updateProfile(nickname: String?, avatarUrl: String?) = runAction {

@@ -26,13 +26,6 @@ class KitchenRepository @Inject constructor(
     suspend fun resetPassword(resetKey: String, username: String, newPassword: String) =
         api().resetPassword(PasswordResetRequest(resetKey, username, newPassword)).unwrap()
 
-    suspend fun saveBackendBaseUrl(baseUrl: String): String {
-        val normalized = BackendConfig.normalizeBaseUrl(baseUrl)
-        sessionStore.saveBackendBaseUrl(normalized)
-        apiClient.setBaseUrl(normalized)
-        return normalized
-    }
-
     suspend fun logout() {
         runCatching { api().logout(auth(sessionStore.sessionSnapshot().token)) }
         sessionStore.clear()
@@ -46,7 +39,6 @@ class KitchenRepository @Inject constructor(
 
     suspend fun dishes(token: String, categoryId: Long? = null) = api().dishes(auth(token), categoryId).unwrap()
     suspend fun searchDishes(token: String, keyword: String) = api().searchDishes(auth(token), keyword).unwrap()
-    suspend fun randomDishes(token: String) = api().randomDishes(auth(token)).unwrap()
     suspend fun addDish(token: String, dish: Dish) = api().addDish(auth(token), dish).unwrap()
     suspend fun updateDish(token: String, dish: Dish) = api().updateDish(auth(token), dish).unwrap()
     suspend fun deleteDish(token: String, id: Long) = api().deleteDish(auth(token), id).unwrap()
@@ -61,7 +53,6 @@ class KitchenRepository @Inject constructor(
     suspend fun acceptOrder(token: String, id: Long) = api().acceptOrder(auth(token), id).unwrap()
     suspend fun rejectOrder(token: String, id: Long) = api().rejectOrder(auth(token), id).unwrap()
     suspend fun completeOrder(token: String, id: Long) = api().completeOrder(auth(token), id).unwrap()
-    suspend fun orderStats(token: String) = api().orderStats(auth(token)).unwrap()
 
     suspend fun announcements(token: String) = api().announcements(auth(token)).unwrap()
     suspend fun addAnnouncement(token: String, content: String) =

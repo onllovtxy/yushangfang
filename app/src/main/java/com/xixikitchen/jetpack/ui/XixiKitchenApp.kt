@@ -2122,96 +2122,84 @@ private fun DiscoverScreen(state: KitchenUiState, vm: KitchenViewModel) {
 private fun MineScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostController) {
     val tokens = LocalGlassTokens.current
     var editProfile by remember { mutableStateOf(false) }
-    val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
-    LaunchedEffect(Unit) { vm.refreshStats() }
     Scaffold(
         modifier = Modifier.statusBarsPadding(),
         containerColor = Color.Transparent
     ) { padding ->
-        PullToRefreshBox(
-            isRefreshing = isPullRefreshing,
-            onRefresh = {
-                startPullRefresh()
-                vm.refreshStats()
-            },
+        LazyColumn(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                item { Spacer(Modifier.height(4.dp)) }
+            item { Spacer(Modifier.height(4.dp)) }
 
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            // 编辑入口只有长按,不放任何视觉提示。
-                            .noRippleCombinedPressable(
-                                pressedScale = 0.985f,
-                                onLongClick = { editProfile = true },
-                                onClick = {}
-                            )
-                            .glassConvex(24.dp)
-                            .padding(20.dp)
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // 编辑入口只有长按,不放任何视觉提示。
+                        .noRippleCombinedPressable(
+                            pressedScale = 0.985f,
+                            onLongClick = { editProfile = true },
+                            onClick = {}
+                        )
+                        .glassConvex(24.dp)
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val avatarUrl = state.user?.avatarUrl
-                            if (!avatarUrl.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = realImageUrl(avatarUrl),
-                                    contentDescription = "Avatar",
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .glassConcave(32.dp),
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .glassConcave(32.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = "Avatar Placeholder",
-                                        tint = GlassAccent.primary,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.width(16.dp))
-                            Text(
-                                text = state.user?.nickname ?: "美味食客",
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                                color = tokens.textPrimary
+                        val avatarUrl = state.user?.avatarUrl
+                        if (!avatarUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = realImageUrl(avatarUrl),
+                                contentDescription = "Avatar",
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .glassConcave(32.dp),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
                             )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .glassConcave(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Avatar Placeholder",
+                                    tint = GlassAccent.primary,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
                         }
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = state.user?.nickname ?: "美味食客",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                            color = tokens.textPrimary
+                        )
                     }
                 }
-
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (state.isAdmin) {
-                            ListAction("管理后台", Icons.Default.AdminPanelSettings) { nav.navigate("admin") }
-                        }
-                        ListAction("设置", Icons.Default.Settings) { nav.navigate("settings") }
-                        ListAction("退出登录", Icons.Default.Person) { vm.logout() }
-                    }
-                }
-
-                item { Spacer(Modifier.height(24.dp)) }
             }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (state.isAdmin) {
+                        ListAction("管理后台", Icons.Default.AdminPanelSettings) { nav.navigate("admin") }
+                    }
+                    ListAction("设置", Icons.Default.Settings) { nav.navigate("settings") }
+                    ListAction("退出登录", Icons.Default.Person) { vm.logout() }
+                }
+            }
+
+            item { Spacer(Modifier.height(24.dp)) }
         }
 
         if (editProfile) {

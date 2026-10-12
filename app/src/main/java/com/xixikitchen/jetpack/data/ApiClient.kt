@@ -34,10 +34,6 @@ class ApiClient @Inject constructor() {
     @Volatile
     private var service: ApiService? = null
 
-    fun setBaseUrl(value: String) {
-        BackendConfig.setCurrentBaseUrl(value)
-    }
-
     fun baseUrl(): String = BackendConfig.currentBaseUrl()
 
     fun service(): ApiService {

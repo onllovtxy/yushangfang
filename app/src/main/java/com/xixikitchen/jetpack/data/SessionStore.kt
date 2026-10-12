@@ -56,14 +56,6 @@ class SessionStore(private val context: Context) {
         sessionState.value = sessionState.value.copy(user = user)
     }
 
-    suspend fun saveBackendBaseUrl(baseUrl: String) {
-        val normalized = BackendConfig.normalizeBaseUrl(baseUrl)
-        prefs.edit(commit = true) {
-            putString(KEY_BACKEND_BASE_URL, normalized)
-        }
-        backendBaseUrlState.value = sanitizeBackendBaseUrl(normalized)
-    }
-
     suspend fun clear() {
         prefs.edit(commit = true) {
             remove(KEY_TOKEN)

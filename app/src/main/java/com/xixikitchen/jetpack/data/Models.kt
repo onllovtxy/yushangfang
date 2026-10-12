@@ -84,15 +84,6 @@ data class OrderItem(
     val quantity: Int = 1
 )
 
-data class OrderStats(
-    val total: Int = 0,
-    val pending: Int = 0,
-    val completed: Int = 0,
-    val monthOrders: Int = 0,
-    val monthReceived: Int = 0,
-    val totalOrders: Int = 0
-)
-
 data class ProfileUpdateRequest(val nickname: String? = null, val avatarUrl: String? = null)
 
 data class UserEditorPayload(

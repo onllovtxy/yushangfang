@@ -69,14 +69,6 @@
 -dontwarn coil.**
 
 # ========================================
-# JPush / JCore
-# ========================================
--keep class cn.jpush.** { *; }
--keep class cn.jiguang.** { *; }
--dontwarn cn.jpush.**
--dontwarn cn.jiguang.**
-
-# ========================================
 # Kotlin + Coroutines
 # ========================================
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
