@@ -8,6 +8,7 @@ class KitchenRepository @Inject constructor(
 ) {
     val session = sessionStore.session
     val backendBaseUrl = sessionStore.backendBaseUrl
+    val sessionExpired = sessionStore.sessionExpired
 
     suspend fun login(username: String, password: String): Session {
         val payload = api().login(LoginRequest(username, password)).unwrap()
@@ -27,8 +28,13 @@ class KitchenRepository @Inject constructor(
         api().resetPassword(PasswordResetRequest(resetKey, username, newPassword)).unwrap()
 
     suspend fun logout() {
-        runCatching { api().logout(auth(sessionStore.sessionSnapshot().token)) }
+        // 先清本地再通知服务端：退出登录立刻生效，不会因为网络失败卡在已登录状态；
+        // 也避免这次请求的 401 反过来触发一条"登录已过期"的提示。
+        val token = sessionStore.sessionSnapshot().token
         sessionStore.clear()
+        if (token.isNotBlank()) {
+            runCatching { api().logout(auth(token)) }
+        }
     }
     suspend fun updateCachedUser(user: User) = sessionStore.updateUser(user)
 

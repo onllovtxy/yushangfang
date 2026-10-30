@@ -311,13 +311,13 @@ private fun TopLevelDestination(
     backdropBlur: androidx.compose.ui.unit.Dp = 0.dp,
     content: @Composable () -> Unit
 ) {
-    val tokens = LocalGlassTokens.current
     Box(
         modifier = Modifier
             .fillMaxSize()
             .then(if (backdropBlur > 0.dp) Modifier.blur(radius = backdropBlur) else Modifier)
     ) {
-        GlassMeshBackground(tokens)
+        // 全屏 mesh 背景由 GlassTheme 统一画一次就够了。这里再叠一层是完全
+        // 不透明的重复绘制，白白多付一次全屏渐变+光斑的填充开销。
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = { MainBottomBar(nav, route) },

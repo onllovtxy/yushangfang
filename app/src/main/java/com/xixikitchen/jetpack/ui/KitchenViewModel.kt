@@ -15,6 +15,8 @@ import com.xixikitchen.jetpack.data.ProfileUpdateRequest
 import com.xixikitchen.jetpack.data.Session
 import com.xixikitchen.jetpack.data.User
 import com.xixikitchen.jetpack.data.UserEditorPayload
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,11 +71,22 @@ class KitchenViewModel @Inject constructor(
 
         viewModelScope.launch {
             repo.session.collect { session ->
+                // 这里只同步登录态，不主动拉数据：首页/订单/公告各自在进入时
+                // 用 LaunchedEffect 触发刷新。两边都拉会让冷启动把同一批请求发两遍。
                 _state.update { it.copy(session = session) }
-                if (session.loggedIn && _state.value.categories.isEmpty()) {
-                    refreshHome()
-                    refreshOrders()
-                    refreshAnnouncements()
+            }
+        }
+
+        // token 过期时后端返回 401，拦截器已经清掉本地登录态；
+        // 这里要把界面残留的数据一并清空并提示用户重新登录，
+        // 否则会话虽然没了，页面还停在旧内容上动不了。
+        viewModelScope.launch {
+            repo.sessionExpired.collect {
+                _state.update {
+                    KitchenUiState(
+                        backendBaseUrl = it.backendBaseUrl,
+                        errorDialogMessage = "登录已过期，请重新登录"
+                    )
                 }
             }
         }
@@ -159,11 +172,31 @@ class KitchenViewModel @Inject constructor(
     }
 
     fun refreshHome() = runAction {
-        val categories = repo.categories(token())
-        val active = _state.value.activeCategoryId ?: categories.firstOrNull()?.id
-        val dishes = active?.let { repo.dishes(token(), it) } ?: emptyList()
-        val recipients = repo.recipients(token())
-        _state.update { it.copy(categories = categories, activeCategoryId = active, dishes = dishes, recipients = recipients) }
+        coroutineScope {
+            // 三个请求原先完全串行，首屏要等 3 个往返。
+            // 接单人和分类互不依赖，先并行发出去；菜品依赖分类结果，
+            // 但当前分类已知时可以一起并行，只有首次进入才需要等分类回来。
+            val cachedActive = _state.value.activeCategoryId
+            val categoriesDeferred = async { repo.categories(token()) }
+            val recipientsDeferred = async { repo.recipients(token()) }
+            val cachedDishesDeferred = cachedActive?.let { id ->
+                async { repo.dishes(token(), id) }
+            }
+
+            val categories = categoriesDeferred.await()
+            val active = cachedActive?.takeIf { cached -> categories.any { it.id == cached } }
+                ?: categories.firstOrNull()?.id
+            val dishes = if (cachedActive != null && active == cachedActive) {
+                cachedDishesDeferred?.await() ?: emptyList()
+            } else {
+                active?.let { repo.dishes(token(), it) } ?: emptyList()
+            }
+            val recipients = recipientsDeferred.await()
+
+            _state.update {
+                it.copy(categories = categories, activeCategoryId = active, dishes = dishes, recipients = recipients)
+            }
+        }
     }
 
     fun selectCategory(id: Long) {
@@ -394,6 +427,11 @@ class KitchenViewModel @Inject constructor(
     }
 
     private fun resolveErrorMessage(e: Throwable): String {
+        if (e is retrofit2.HttpException && e.code() == 401) {
+            // 登录态失效由 OkHttp 拦截器统一处理（清 session + 回登录页），
+            // 这里不再把后端的原始提示弹出来。
+            return "登录已过期，请重新登录"
+        }
         if (e is retrofit2.HttpException) {
             try {
                 val bodyString = e.response()?.errorBody()?.string()
