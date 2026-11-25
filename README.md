@@ -26,8 +26,8 @@
 | 模块 | 功能描述 |
 | :--- | :--- |
 | 🍽️ **点单 (Kitchen)** | 菜品分类切换、300ms 防抖的无跳动搜索框、双人购物车 (`CartDialog`)、一键下单与实时菜品列表 |
-| 📋 **订单 (Orders)** | 极简筛选（`全部` / `等喂食` / `做饭中` / `已享用`）、接单/拒单/完成烹饪生命周期管理 |
-| 📢 **公告栏 (Discover)** | 情侣留言与社区公告，使用全一体化通透 `glassConvex` 悬浮面板展示 |
+| 📋 **订单 (Orders)** | 极简筛选（`全部` / `等喂食` / `做饭中` / `已享用`）、接单/拒单/完成烹饪生命周期管理、已完成订单上传成品打卡 |
+| 📢 **发现 (Discover)** | **小纸条**（双人冰箱贴留言板支持置顶 + 纪念日/倒计时横滑卡片）与 **美食日记**（成品打卡时间线相册 + 大图预览） |
 | 👤 **我的 (Mine)** | 极简个人信息卡片、长按修改昵称与头像、主题设置入口、后台管理通道与快速退出 |
 | ⚙️ **后台管理 (Admin Console)** | 超级管理员控制台，支持 用户 / 分类 / 菜品 / 公告 / 订单 5 大模块切换与动态管理 |
 
@@ -80,7 +80,7 @@
 - `versionCode`：**必须**递增，否则手机会拒绝覆盖安装。
 - `versionName`：每次交付都进一位（1.0.7 → 1.0.8），不要几个不同的包顶着同一个版本号。
 
-当前版本：**1.0.9**（versionCode 11）
+当前版本：**1.1.0**（versionCode 12）
 
 ### ⚠️ 签名密钥说明
 
@@ -111,11 +111,21 @@ yushangfang/
 │   │   ├── designsystem/
 │   │   │   ├── theme/             # 玻璃态设计系统 (GlassTokens / GlassMesh / GlassTheme / 自定义主题)
 │   │   │   └── motion/            # 动效时长与缓动，含"减少动效"适配
-│   │   ├── XixiKitchenApp.kt      # 主界面入口 (登录、点单、订单、公告栏、我的、购物车弹窗)
+│   │   ├── components/
+│   │   │   └── CommonComponents.kt # 公共毛玻璃弹窗、左滑删除、图片上传、看图器等组件
+│   │   ├── screens/               # 按功能拆分的页面视图
+│   │   │   ├── LoginScreen.kt     #   登录/注册/重置密码
+│   │   │   ├── KitchenScreen.kt   #   菜单浏览、搜索、购物车与下单
+│   │   │   ├── OrdersScreen.kt    #   订单列表、详情与成品打卡入口
+│   │   │   ├── DiscoverScreen.kt  #   发现页（纪念日倒计时/双向小纸条/美食日记）
+│   │   │   └── MineScreen.kt      #   个人主页与资料编辑
+│   │   ├── XixiKitchenApp.kt      # 应用导航壳与全局反馈协调
 │   │   ├── AdminScreens.kt        # 后台管理模块视图 (用户/分类/菜品/公告/订单)
 │   │   ├── SettingsScreen.kt      # 设置页与主题选择
 │   │   ├── CustomThemeDialog.kt   # 自定义主题编辑器
-│   │   ├── KitchenViewModel.kt    # 全局单一 ViewModel (StateFlow)
+│   │   ├── KitchenViewModel.kt    # 主业务 ViewModel (菜单/订单/后台)
+│   │   ├── DiscoverViewModel.kt   # 发现与成品打卡 ViewModel
+│   │   ├── ErrorMessageResolver.kt# 统一网络与业务错误解析
 │   │   ├── UploadFileNames.kt     # 图片读取、EXIF 方向校正与压缩
 │   │   ├── FoodEmojis.kt          # 无图菜品的 emoji 兜底头像
 │   │   └── UiModifiers.kt         # 无涟漪按压等自定义 Modifier

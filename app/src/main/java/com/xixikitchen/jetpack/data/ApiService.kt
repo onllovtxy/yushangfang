@@ -85,13 +85,81 @@ interface ApiService {
     suspend fun announcements(@Header("Authorization") token: String): ApiResponse<List<Announcement>>
 
     @POST("/api/announcement/add")
-    suspend fun addAnnouncement(@Header("Authorization") token: String, @Body body: Map<String, String>): ApiResponse<String>
+    suspend fun addAnnouncement(
+        @Header("Authorization") token: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>
+    ): ApiResponse<String>
 
     @PUT("/api/announcement/update")
-    suspend fun updateAnnouncement(@Header("Authorization") token: String, @Body body: Map<String, Any>): ApiResponse<String>
+    suspend fun updateAnnouncement(
+        @Header("Authorization") token: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>
+    ): ApiResponse<String>
+
+    @PUT("/api/announcement/pin/{id}")
+    suspend fun pinAnnouncement(
+        @Header("Authorization") token: String,
+        @Path("id") id: Long,
+        @Body body: PinPayload
+    ): ApiResponse<String>
 
     @DELETE("/api/announcement/delete/{id}")
     suspend fun deleteAnnouncement(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
+
+    @GET("/api/anniversary/list")
+    suspend fun anniversaries(@Header("Authorization") token: String): ApiResponse<List<Anniversary>>
+
+    @POST("/api/anniversary/add")
+    suspend fun addAnniversary(
+        @Header("Authorization") token: String,
+        @Body body: AnniversarySaveRequest
+    ): ApiResponse<Anniversary>
+
+    @PUT("/api/anniversary/update/{id}")
+    suspend fun updateAnniversary(
+        @Header("Authorization") token: String,
+        @Path("id") id: Long,
+        @Body body: AnniversarySaveRequest
+    ): ApiResponse<Anniversary>
+
+    @PUT("/api/anniversary/pin/{id}")
+    suspend fun pinAnniversary(
+        @Header("Authorization") token: String,
+        @Path("id") id: Long,
+        @Body body: PinPayload
+    ): ApiResponse<String>
+
+    @DELETE("/api/anniversary/delete/{id}")
+    suspend fun deleteAnniversary(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
+
+    @GET("/api/checkin/list")
+    suspend fun checkIns(
+        @Header("Authorization") token: String,
+        @Query("page") page: Int = 1,
+        @Query("pageSize") pageSize: Int = 20
+    ): ApiResponse<CheckInPage>
+
+    @GET("/api/checkin/order/{orderId}")
+    suspend fun orderCheckIns(
+        @Header("Authorization") token: String,
+        @Path("orderId") orderId: Long
+    ): ApiResponse<List<OrderCheckIn>>
+
+    @POST("/api/checkin/add")
+    suspend fun addCheckIn(
+        @Header("Authorization") token: String,
+        @Body body: CheckInCreateRequest
+    ): ApiResponse<OrderCheckIn>
+
+    @PUT("/api/checkin/update/{id}")
+    suspend fun updateCheckIn(
+        @Header("Authorization") token: String,
+        @Path("id") id: Long,
+        @Body body: CheckInUpdateRequest
+    ): ApiResponse<OrderCheckIn>
+
+    @DELETE("/api/checkin/delete/{id}")
+    suspend fun deleteCheckIn(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
 
     @GET("/api/admin/users")
     suspend fun adminUsers(@Header("Authorization") token: String): ApiResponse<List<User>>

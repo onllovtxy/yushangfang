@@ -15,6 +15,7 @@ import com.xixikitchen.jetpack.data.ProfileUpdateRequest
 import com.xixikitchen.jetpack.data.Session
 import com.xixikitchen.jetpack.data.User
 import com.xixikitchen.jetpack.data.UserEditorPayload
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,14 +23,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.RequestBody.Companion.toRequestBody
 
 data class KitchenUiState(
     val session: Session = Session(),
-    val loading: Boolean = false,
+    val activeRequests: Int = 0,
     val message: String? = null,
     val errorDialogMessage: String? = null,
     val categories: List<Category> = emptyList(),
@@ -47,6 +45,7 @@ data class KitchenUiState(
     val adminOrders: List<Order> = emptyList(),
     val backendBaseUrl: String = BackendConfig.DEFAULT_BASE_URL
 ) {
+    val loading: Boolean get() = activeRequests > 0
     val isLoggedIn: Boolean get() = session.loggedIn
     val isAdmin: Boolean get() = session.user?.role == "admin" || session.user?.role == "super_admin"
     val token: String get() = session.token
@@ -97,67 +96,67 @@ class KitchenViewModel @Inject constructor(
 
     fun login(username: String, password: String) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, message = null, errorDialogMessage = null) }
+            _state.update { it.copy(activeRequests = it.activeRequests + 1, message = null, errorDialogMessage = null) }
+            try {
+                val trimmedUsername = username.trim()
+                val trimmedPassword = password
+                if (trimmedUsername.isBlank() || trimmedPassword.isBlank()) {
+                    notifyError("请输入账号和密码")
+                    return@launch
+                }
 
-            val trimmedUsername = username.trim()
-            val trimmedPassword = password
-            if (trimmedUsername.isBlank() || trimmedPassword.isBlank()) {
-                notifyError("请输入账号和密码")
-                _state.update { it.copy(loading = false) }
-                return@launch
+                runCatching {
+                    repo.login(trimmedUsername, trimmedPassword)
+                }.onSuccess {
+                    // 登录成功后不弹任何提示（页面切换本身就是反馈），
+                    // 并清掉可能残留的错误消息，进入主页保持干净
+                    _state.update { it.copy(message = null, errorDialogMessage = null) }
+                }.onFailure { e ->
+                    notifyError(resolveLoginErrorMessage(e))
+                }
+            } finally {
+                _state.update { it.copy(activeRequests = (it.activeRequests - 1).coerceAtLeast(0)) }
             }
-
-            runCatching {
-                repo.login(trimmedUsername, trimmedPassword)
-            }.onSuccess {
-                // 登录成功后不弹任何提示（页面切换本身就是反馈），
-                // 并清掉可能残留的错误消息，进入主页保持干净
-                _state.update { it.copy(message = null, errorDialogMessage = null) }
-            }.onFailure { e ->
-                notifyError(resolveLoginErrorMessage(e))
-            }
-
-            _state.update { it.copy(loading = false) }
         }
     }
 
     fun register(username: String, password: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, message = null, errorDialogMessage = null) }
-
-            val trimmedUsername = username.trim()
-            val trimmedPassword = password
-            if (trimmedUsername.isBlank() || trimmedPassword.isBlank()) {
-                notifyError("请输入账号和密码")
-                _state.update { it.copy(loading = false) }
-                return@launch
-            }
-
-            runCatching {
-                val session = repo.register(trimmedUsername, trimmedPassword)
-                // 注册成功即已登录（后端返回 token），清理状态后进入主页
-                _state.update {
-                    it.copy(
-                        session = session,
-                        message = null,
-                        errorDialogMessage = null,
-                        categories = emptyList(),
-                        dishes = emptyList(),
-                        searchResults = emptyList(),
-                        recipients = emptyList(),
-                        orders = emptyList(),
-                        selectedOrder = null,
-                        announcements = emptyList(),
-                        adminUsers = emptyList(),
-                        adminOrders = emptyList()
-                    )
+            _state.update { it.copy(activeRequests = it.activeRequests + 1, message = null, errorDialogMessage = null) }
+            try {
+                val trimmedUsername = username.trim()
+                val trimmedPassword = password
+                if (trimmedUsername.isBlank() || trimmedPassword.isBlank()) {
+                    notifyError("请输入账号和密码")
+                    return@launch
                 }
-                onSuccess()
-            }.onFailure { e ->
-                notifyError(resolveErrorMessage(e))
-            }
 
-            _state.update { it.copy(loading = false) }
+                runCatching {
+                    val session = repo.register(trimmedUsername, trimmedPassword)
+                    // 注册成功即已登录（后端返回 token），清理状态后进入主页
+                    _state.update {
+                        it.copy(
+                            session = session,
+                            message = null,
+                            errorDialogMessage = null,
+                            categories = emptyList(),
+                            dishes = emptyList(),
+                            searchResults = emptyList(),
+                            recipients = emptyList(),
+                            orders = emptyList(),
+                            selectedOrder = null,
+                            announcements = emptyList(),
+                            adminUsers = emptyList(),
+                            adminOrders = emptyList()
+                        )
+                    }
+                    onSuccess()
+                }.onFailure { e ->
+                    notifyError(resolveErrorMessage(e))
+                }
+            } finally {
+                _state.update { it.copy(activeRequests = (it.activeRequests - 1).coerceAtLeast(0)) }
+            }
         }
     }
 
@@ -173,9 +172,6 @@ class KitchenViewModel @Inject constructor(
 
     fun refreshHome() = runAction {
         coroutineScope {
-            // 三个请求原先完全串行，首屏要等 3 个往返。
-            // 接单人和分类互不依赖，先并行发出去；菜品依赖分类结果，
-            // 但当前分类已知时可以一起并行，只有首次进入才需要等分类回来。
             val cachedActive = _state.value.activeCategoryId
             val categoriesDeferred = async { repo.categories(token()) }
             val recipientsDeferred = async { repo.recipients(token()) }
@@ -213,8 +209,6 @@ class KitchenViewModel @Inject constructor(
 
     fun search(keyword: String) = runAction {
         val trimmed = keyword.trim()
-        // 存 trim 之后的词。只敲了空格不该被当成"正在搜索",
-        // 否则列表会显示"没有找到匹配的菜品",而用户其实什么都没搜。
         _state.update {
             it.copy(
                 searchKeyword = trimmed,
@@ -312,33 +306,8 @@ class KitchenViewModel @Inject constructor(
         onFailure: () -> Unit
     ) = runAction {
         try {
-            val lowerName = fileName.lowercase()
-            val allowedExtension = lowerName.endsWith(".jpg") ||
-                lowerName.endsWith(".jpeg") ||
-                lowerName.endsWith(".png") ||
-                lowerName.endsWith(".gif") ||
-                lowerName.endsWith(".webp")
-            if (!allowedExtension) {
-                throw IllegalArgumentException("仅支持 jpg、jpeg、png、gif、webp 图片")
-            }
-            if (bytes.isEmpty()) {
-                throw IllegalArgumentException("上传文件不能为空")
-            }
-            val maxSizeBytes = 5 * 1024 * 1024
-            if (bytes.size > maxSizeBytes) {
-                throw IllegalArgumentException("图片不能超过 5MB")
-            }
-
-            val mimeType = when {
-                fileName.endsWith(".png", ignoreCase = true) -> "image/png"
-                fileName.endsWith(".gif", ignoreCase = true) -> "image/gif"
-                fileName.endsWith(".webp", ignoreCase = true) -> "image/webp"
-                else -> "image/jpeg"
-            }
-            val requestFile = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
-            val part = okhttp3.MultipartBody.Part.createFormData("file", fileName, requestFile)
-            val response = repo.uploadFile(token(), part)
-            onSuccess(response.url)
+            val url = repo.uploadImageBytes(token(), bytes, fileName)
+            onSuccess(url)
         } catch (e: Exception) {
             onFailure()
             throw e
@@ -378,13 +347,13 @@ class KitchenViewModel @Inject constructor(
     fun saveAnnouncement(id: Long?, content: String) = runAction {
         if (id == null || id == 0L) repo.addAnnouncement(token(), content) else repo.updateAnnouncement(token(), id, content)
         refreshAnnouncements()
-        notify("公告已保存")
+        notify("小纸条已保存")
     }
 
     fun deleteAnnouncement(id: Long) = runAction {
         repo.deleteAnnouncement(token(), id)
         refreshAnnouncements()
-        notify("公告已删除")
+        notify("小纸条已删除")
     }
 
     fun saveUser(id: Long?, payload: UserEditorPayload) = runAction {
@@ -419,88 +388,14 @@ class KitchenViewModel @Inject constructor(
 
     private fun runAction(block: suspend () -> Unit) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, message = null, errorDialogMessage = null) }
-            runCatching { block() }
-                .onFailure { e -> notifyError(resolveErrorMessage(e)) }
-            _state.update { it.copy(loading = false) }
-        }
-    }
-
-    private fun resolveErrorMessage(e: Throwable): String {
-        if (e is retrofit2.HttpException && e.code() == 401) {
-            // 登录态失效由 OkHttp 拦截器统一处理（清 session + 回登录页），
-            // 这里不再把后端的原始提示弹出来。
-            return "登录已过期，请重新登录"
-        }
-        if (e is retrofit2.HttpException) {
+            _state.update { it.copy(activeRequests = it.activeRequests + 1, message = null, errorDialogMessage = null) }
             try {
-                val bodyString = e.response()?.errorBody()?.string()
-                if (!bodyString.isNullOrBlank()) {
-                    try {
-                        val apiResponse = com.google.gson.Gson().fromJson(bodyString, com.xixikitchen.jetpack.data.ApiResponse::class.java)
-                        if (!apiResponse.msg.isNullOrBlank()) {
-                            return apiResponse.msg
-                        }
-                    } catch (ignored: Exception) {}
-                    
-                    if (bodyString.contains("<html>") || bodyString.contains("<title>")) {
-                        val titleRegex = "<title>(.*?)</title>".toRegex(RegexOption.IGNORE_CASE)
-                        val matchResult = titleRegex.find(bodyString)
-                        if (matchResult != null) {
-                            return "服务器错误 (${e.code()}): ${matchResult.groupValues[1]}"
-                        }
-                    }
-                    return if (bodyString.contains("系统内部错误，请稍后重试") && bodyString.contains("\"code\":-1")) {
-                        "登录接口异常：服务端 /api/user/password-login 返回 500。请检查后端登录实现或接口路径是否正确。"
-                    } else {
-                        "请求错误 (${e.code()}): ${bodyString.take(120)}"
-                    }
-                }
-            } catch (ignored: Exception) {
-                // ignore
+                runCatching { block() }
+                    .onFailure { e -> notifyError(resolveErrorMessage(e)) }
+            } finally {
+                _state.update { it.copy(activeRequests = (it.activeRequests - 1).coerceAtLeast(0)) }
             }
-            return "请求错误: ${e.code()}"
         }
-        if (e is IllegalArgumentException) {
-            return e.message ?: "输入或安全校验失败"
-        }
-        if (e is java.net.ConnectException || e is java.net.UnknownHostException) {
-            return "网络连接失败，请检查后端地址或网络设置"
-        }
-        if (e is java.net.SocketTimeoutException) {
-            return "请求超时，请稍后再试"
-        }
-        return e.message ?: "操作失败"
-    }
-
-    private fun resolveLoginErrorMessage(e: Throwable): String {
-        if (e is retrofit2.HttpException) {
-            val code = e.code()
-            val bodyString = runCatching { e.response()?.errorBody()?.string() }.getOrNull().orEmpty()
-            if (bodyString.isNotBlank()) {
-                // 后端标准 JSON 响应：直接展示业务 msg
-                val apiResponse = runCatching {
-                    com.google.gson.Gson().fromJson(bodyString, com.xixikitchen.jetpack.data.ApiResponse::class.java)
-                }.getOrNull()
-                if (!apiResponse?.msg.isNullOrBlank()) {
-                    return apiResponse!!.msg!!
-                }
-                // 非 JSON（网关 HTML 错误页等）：给出友好提示，不显示原始 HTML
-                return when (code) {
-                    502, 503 -> "服务器暂时不可用，请稍后再试"
-                    404 -> "接口不存在，请检查后端地址设置"
-                    else -> "登录失败 (HTTP $code)，请稍后重试"
-                }
-            }
-            return "登录失败: ${e.code()}"
-        }
-
-        val msg = e.message.orEmpty()
-        if (msg.contains("用户名或密码错误")) return msg
-        if (msg.contains("Connection reset", ignoreCase = true)) {
-            return "连接被服务器重置。请稍后重试，或联系我继续排查服务端。"
-        }
-        return resolveErrorMessage(e)
     }
 
     private fun token(): String = _state.value.token
@@ -510,8 +405,6 @@ class KitchenViewModel @Inject constructor(
     }
 
     private fun notifyError(message: String) {
-        // 错误只走弹窗，不写 snackbar 通道，
-        // 避免登录成功后旧的错误提示还残留在主页上
         _state.update { it.copy(errorDialogMessage = message) }
     }
 }

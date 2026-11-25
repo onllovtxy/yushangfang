@@ -1,12 +1,8 @@
 package com.xixikitchen.jetpack.ui
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +11,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,28 +19,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.anchoredDraggable
-import androidx.compose.foundation.gestures.AnchoredDraggableState
-import androidx.compose.foundation.gestures.DraggableAnchors
-import androidx.compose.foundation.layout.offset
-import androidx.compose.ui.unit.IntOffset
-import kotlin.math.roundToInt
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,35 +38,29 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.xixikitchen.jetpack.data.Announcement
-import com.xixikitchen.jetpack.data.BackendConfig
 import com.xixikitchen.jetpack.data.Category
 import com.xixikitchen.jetpack.data.Dish
 import com.xixikitchen.jetpack.data.Order
 import com.xixikitchen.jetpack.data.User
 import com.xixikitchen.jetpack.data.UserEditorPayload
+import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
+import com.xixikitchen.jetpack.ui.components.DirectImageUploadField
+import com.xixikitchen.jetpack.ui.components.SwipeRevealBox
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
 import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcave
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
-import kotlinx.coroutines.launch
 
 private enum class AdminTab(val title: String, val caption: String) {
     Category("分类", "菜单结构"),
@@ -430,9 +409,7 @@ private fun AnnouncementAdminList(items: List<Announcement>, onEdit: (Announceme
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(items) { item ->
                 AdminCard(
-                    // 没有副标题之后,"公告 #3" 这种编号就等于什么都没说,
-                    // 所以把公告正文放到标题上 —— 它本来就是这一条的全部内容。
-                    title = item.content,
+                    title = if (item.pinned) "[置顶] ${item.content}" else item.content,
                     onEdit = { onEdit(item) },
                     onDelete = { onDelete(item.id) }
                 )
@@ -500,42 +477,13 @@ private fun UserAdminList(
                 }
 
                 if (showDeleteConfirm) {
-                    AlertDialog(
-                        onDismissRequest = { showDeleteConfirm = false },
-                        modifier = Modifier.glassConvexOverlay(24.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        containerColor = Color.Transparent,
-                        title = {
-                            Text(
-                                "确认删除",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                color = GlassAccent.primaryDark
-                            )
+                    ConfirmDeleteDialog(
+                        message = "确定要删除用户 \"${user.nickname}\" 吗？此操作无法撤销。",
+                        onConfirm = {
+                            showDeleteConfirm = false
+                            onDelete(user.id)
                         },
-                        text = {
-                            Text(
-                                "确定要删除用户 \"${user.nickname}\" 吗？此操作无法撤销。",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = tokens.textPrimary
-                            )
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    showDeleteConfirm = false
-                                    onDelete(user.id)
-                                },
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.error)
-                            ) {
-                                Text("确认删除", fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDeleteConfirm = false }) {
-                                Text("取消", color = tokens.textSecondary)
-                            }
-                        }
+                        onDismiss = { showDeleteConfirm = false }
                     )
                 }
             }
@@ -558,81 +506,6 @@ private fun OrderAdminList(items: List<Order>, onDelete: (Long) -> Unit) {
                 )
             }
             item { Spacer(Modifier.height(24.dp)) }
-        }
-    }
-}
-
-/** 左滑揭示的两种停靠状态：闭合 / 展开(露出删除按钮) */
-private enum class RevealValue { Closed, Open }
-
-/**
- * iOS 风格左滑组件：向左滑动一段距离后停住，露出右侧删除按钮，
- * 点击按钮才执行删除；右滑或点击按钮后收起。
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun SwipeRevealBox(
-    swipeEnabled: Boolean = true,
-    onDeleteClick: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    // 删除按钮宽度 = 屏幕宽度的 1/6
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
-    val revealWidth = screenWidthDp / 6f
-    val density = LocalDensity.current
-    val revealPx = with(density) { revealWidth.toPx() }
-    // Compose 1.8: anchors 必须在构造时提供, 否则首帧布局 requireOffset 抛 IllegalStateException
-    val state = remember(revealPx) {
-        AnchoredDraggableState(
-            initialValue = RevealValue.Closed,
-            anchors = DraggableAnchors {
-                RevealValue.Closed at 0f
-                RevealValue.Open at -revealPx
-            },
-            confirmValueChange = { true }
-        )
-    }
-
-    Box(Modifier.fillMaxWidth()) {
-        // 底层：删除按钮（藏在卡片右侧，滑动时露出）
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .padding(start = 20.dp),
-            contentAlignment = Alignment.CenterEnd
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(revealWidth)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(GlassAccent.error)
-                    .clickable {
-                        onDeleteClick()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("删除", color = Color.White, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        // 内容层：跟手滑动，松手后停在 Closed / Open 两个锚点
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset {
-                    val off = state.requireOffset()
-                    IntOffset(if (off.isNaN()) 0 else off.roundToInt(), 0)
-                }
-                .then(
-                    if (swipeEnabled) {
-                        Modifier.anchoredDraggable(state, Orientation.Horizontal)
-                    } else {
-                        Modifier
-                    }
-                )
-        ) {
-            content()
         }
     }
 }
@@ -680,42 +553,13 @@ private fun AdminCard(title: String, onEdit: (() -> Unit)?, onDelete: () -> Unit
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            modifier = Modifier.glassConvexOverlay(24.dp),
-            shape = RoundedCornerShape(24.dp),
-            containerColor = Color.Transparent,
-            title = {
-                Text(
-                    "确认删除",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = GlassAccent.primaryDark
-                )
+        ConfirmDeleteDialog(
+            message = "确定要删除 \"$title\" 吗？此操作无法撤销。",
+            onConfirm = {
+                showDeleteConfirm = false
+                onDelete()
             },
-            text = {
-                Text(
-                    "确定要删除 \"$title\" 吗？此操作无法撤销。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = tokens.textPrimary
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showDeleteConfirm = false
-                        onDelete()
-                    },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.error)
-                ) {
-                    Text("确认删除", fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("取消", color = tokens.textSecondary)
-                }
-            }
+            onDismiss = { showDeleteConfirm = false }
         )
     }
 }
@@ -863,7 +707,7 @@ private fun DishEditorDialog(
                     emptyText = "点击选择菜品图片",
                     uploading = uploading,
                     filePrefix = "dish",
-                    vm = vm,
+                    onUpload = vm::uploadFile,
                     onUploadingChange = { uploading = it },
                     onValueChange = { image = it }
                 )
@@ -897,138 +741,6 @@ private fun DishEditorDialog(
             }
         }
     )
-}
-
-@Composable
-private fun DirectImageUploadField(
-    value: String,
-    label: String,
-    emptyText: String,
-    uploading: Boolean,
-    filePrefix: String,
-    vm: KitchenViewModel,
-    onUploadingChange: (Boolean) -> Unit,
-    onValueChange: (String) -> Unit,
-    circular: Boolean = false
-) {
-    val tokens = LocalGlassTokens.current
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        onUploadingChange(true)
-        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val processed = readAndCompressImage(context, uri)
-                if (processed == null) {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        onUploadingChange(false)
-                    }
-                    return@launch
-                }
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    vm.uploadFile(
-                        bytes = processed.bytes,
-                        fileName = "${filePrefix}_${System.currentTimeMillis()}.${processed.extension}",
-                        onSuccess = { url ->
-                            onValueChange(url)
-                            onUploadingChange(false)
-                        },
-                        onFailure = {
-                            onUploadingChange(false)
-                        }
-                    )
-                }
-            } catch (e: Exception) {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    onUploadingChange(false)
-                }
-            }
-        }
-    }
-    val shape = if (circular) CircleShape else RoundedCornerShape(18.dp)
-    val imageUrl = adminRealImageUrl(value)
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if (circular) Alignment.CenterHorizontally else Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-            color = tokens.textSecondary
-        )
-        Box(
-            modifier = Modifier
-                .then(if (circular) Modifier.size(92.dp) else Modifier.fillMaxWidth().height(132.dp))
-                .noRipplePressable(enabled = !uploading, pressedScale = 0.98f) { launcher.launch("image/*") }
-                .clip(shape)
-                .background(GlassAccent.wash)
-                .border(BorderStroke(1.dp, GlassAccent.stroke), shape),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!imageUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = label,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.18f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "更换图片",
-                        tint = Color.White,
-                        modifier = Modifier.size(if (circular) 24.dp else 28.dp)
-                    )
-                }
-            } else {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = label,
-                        tint = GlassAccent.primary,
-                        modifier = Modifier.size(if (circular) 26.dp else 32.dp)
-                    )
-                    Text(
-                        emptyText,
-                        color = GlassAccent.primary,
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
-            }
-            if (uploading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.White.copy(alpha = 0.78f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        color = GlassAccent.primary,
-                        strokeWidth = 3.dp,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-        }
-        Text(
-            text = if (uploading) "正在上传..." else "选择后自动上传，无需手动填写地址",
-            style = MaterialTheme.typography.bodySmall,
-            color = if (uploading) GlassAccent.primary else tokens.textSecondary
-        )
-    }
 }
 
 @Composable
@@ -1129,7 +841,7 @@ private fun UserEditorDialog(
                     uploading = uploading,
                     filePrefix = "avatar",
                     circular = true,
-                    vm = vm,
+                    onUpload = vm::uploadFile,
                     onUploadingChange = { uploading = it },
                     onValueChange = { avatar = it }
                 )
@@ -1265,8 +977,4 @@ private fun PartnerDialog(user: User, users: List<User>, onDismiss: () -> Unit, 
             }
         }
     )
-}
-
-private fun adminRealImageUrl(url: String?): String? {
-    return BackendConfig.resolveUrl(url)
 }

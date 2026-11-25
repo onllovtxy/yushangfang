@@ -1,0 +1,1431 @@
+package com.xixikitchen.jetpack.ui.screens
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.xixikitchen.jetpack.data.Anniversary
+import com.xixikitchen.jetpack.data.AnniversarySaveRequest
+import com.xixikitchen.jetpack.data.Announcement
+import com.xixikitchen.jetpack.data.OrderCheckIn
+import com.xixikitchen.jetpack.ui.DiscoverUiState
+import com.xixikitchen.jetpack.ui.DiscoverViewModel
+import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
+import com.xixikitchen.jetpack.ui.components.DirectImageUploadField
+import com.xixikitchen.jetpack.ui.components.PhotoLightboxDialog
+import com.xixikitchen.jetpack.ui.components.StatusFilterChip
+import com.xixikitchen.jetpack.ui.components.SwipeRevealBox
+import com.xixikitchen.jetpack.ui.components.UserMiniAvatar
+import com.xixikitchen.jetpack.ui.components.realImageUrl
+import com.xixikitchen.jetpack.ui.components.rememberPullRefreshState
+import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
+import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
+import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcave
+import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcaveOverlay
+import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
+import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
+import com.xixikitchen.jetpack.ui.noRippleCombinedPressable
+import com.xixikitchen.jetpack.ui.noRipplePressable
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+private enum class DiscoverSubTab(val label: String) {
+    Notes("小纸条"),
+    Diary("美食日记")
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DiscoverScreen(
+    state: DiscoverUiState,
+    vm: DiscoverViewModel,
+    onOpenOrder: (Long) -> Unit,
+    onGoOrders: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    var subTab by rememberSaveable { mutableStateOf(DiscoverSubTab.Notes) }
+    val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
+
+    // Dialog states
+    var showCreateNote by remember { mutableStateOf(false) }
+    var editingNote by remember { mutableStateOf<Announcement?>(null) }
+    var noteActionTarget by remember { mutableStateOf<Announcement?>(null) }
+    var deleteNoteTarget by remember { mutableStateOf<Announcement?>(null) }
+
+    var showCreateAnniversary by remember { mutableStateOf(false) }
+    var editingAnniversary by remember { mutableStateOf<Anniversary?>(null) }
+    var anniversaryActionTarget by remember { mutableStateOf<Anniversary?>(null) }
+    var deleteAnniversaryTarget by remember { mutableStateOf<Anniversary?>(null) }
+
+    var editingCheckIn by remember { mutableStateOf<OrderCheckIn?>(null) }
+    var checkInActionTarget by remember { mutableStateOf<OrderCheckIn?>(null) }
+    var deleteCheckInTarget by remember { mutableStateOf<OrderCheckIn?>(null) }
+    var lightboxCheckIn by remember { mutableStateOf<OrderCheckIn?>(null) }
+
+    LaunchedEffect(Unit) { vm.refreshNotesBoard() }
+    LaunchedEffect(subTab) {
+        if (subTab == DiscoverSubTab.Diary && !state.diaryLoaded) {
+            vm.refreshDiary()
+        }
+    }
+
+    Scaffold(
+        modifier = Modifier.statusBarsPadding(),
+        containerColor = Color.Transparent
+    ) { padding ->
+        PullToRefreshBox(
+            isRefreshing = isPullRefreshing,
+            onRefresh = {
+                startPullRefresh()
+                if (subTab == DiscoverSubTab.Notes) vm.refreshNotesBoard() else vm.refreshDiary()
+            },
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
+                ) {
+                    DiscoverSubTab.entries.forEach { tab ->
+                        StatusFilterChip(
+                            active = subTab == tab,
+                            onClick = { subTab = tab },
+                            label = tab.label,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                when (subTab) {
+                    DiscoverSubTab.Notes -> NotesBoardContent(
+                        state = state,
+                        onAddAnniversary = { showCreateAnniversary = true },
+                        onAnniversaryClick = { anniversaryActionTarget = it },
+                        onAddNote = { showCreateNote = true },
+                        onNoteLongClick = { noteActionTarget = it },
+                        onNoteDeleteRequest = { deleteNoteTarget = it }
+                    )
+
+                    DiscoverSubTab.Diary -> DiaryContent(
+                        state = state,
+                        onOpenOrder = onOpenOrder,
+                        onGoOrders = onGoOrders,
+                        onImageClick = { lightboxCheckIn = it },
+                        onLongClick = { checkInActionTarget = it },
+                        onLoadMore = vm::loadMoreDiary
+                    )
+                }
+            }
+        }
+    }
+
+    if (showCreateNote || editingNote != null) {
+        NoteEditorDialog(
+            initial = editingNote,
+            onDismiss = {
+                showCreateNote = false
+                editingNote = null
+            },
+            onSave = { content, pinned ->
+                val targetId = editingNote?.id
+                showCreateNote = false
+                editingNote = null
+                vm.saveNote(targetId, content, pinned)
+            }
+        )
+    }
+
+    noteActionTarget?.let { target ->
+        val canManage = state.isAdmin || (target.createdBy ?: target.updatedBy) == state.currentUser?.id
+        AlertDialog(
+            onDismissRequest = { noteActionTarget = null },
+            modifier = Modifier.glassConvexOverlay(24.dp),
+            shape = RoundedCornerShape(24.dp),
+            containerColor = Color.Transparent,
+            title = {
+                Text(
+                    "小纸条操作",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = GlassAccent.primaryDark
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = target.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = tokens.textSecondary,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .noRipplePressable(pressedScale = 0.96f) {
+                                    noteActionTarget = null
+                                    vm.togglePinNote(target)
+                                }
+                                .glassConcaveOverlay(14.dp)
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (target.pinned) "取消置顶" else "置顶",
+                                color = GlassAccent.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        if (canManage) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .noRipplePressable(pressedScale = 0.96f) {
+                                        editingNote = target
+                                        noteActionTarget = null
+                                    }
+                                    .glassConcaveOverlay(14.dp)
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "编辑",
+                                    color = tokens.textPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (canManage) {
+                    TextButton(
+                        onClick = {
+                            deleteNoteTarget = target
+                            noteActionTarget = null
+                        }
+                    ) {
+                        Text("删除", color = GlassAccent.error, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { noteActionTarget = null }) {
+                    Text("关闭", color = tokens.textSecondary)
+                }
+            }
+        )
+    }
+
+    deleteNoteTarget?.let { target ->
+        ConfirmDeleteDialog(
+            message = "确定要撕掉这张小纸条吗？",
+            onConfirm = {
+                deleteNoteTarget = null
+                vm.deleteNote(target.id)
+            },
+            onDismiss = { deleteNoteTarget = null }
+        )
+    }
+
+    if (showCreateAnniversary || editingAnniversary != null) {
+        AnniversaryEditorDialog(
+            initial = editingAnniversary,
+            onDismiss = {
+                showCreateAnniversary = false
+                editingAnniversary = null
+            },
+            onSave = { req ->
+                val targetId = editingAnniversary?.id
+                showCreateAnniversary = false
+                editingAnniversary = null
+                vm.saveAnniversary(targetId, req)
+            }
+        )
+    }
+
+    anniversaryActionTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { anniversaryActionTarget = null },
+            modifier = Modifier.glassConvexOverlay(24.dp),
+            shape = RoundedCornerShape(24.dp),
+            containerColor = Color.Transparent,
+            title = {
+                Text(
+                    target.title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = GlassAccent.primaryDark
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "${target.eventDate}${if (target.note.isNotBlank()) " · ${target.note}" else ""}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = tokens.textSecondary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .noRipplePressable(pressedScale = 0.96f) {
+                                    anniversaryActionTarget = null
+                                    vm.togglePinAnniversary(target)
+                                }
+                                .glassConcaveOverlay(14.dp)
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (target.pinned) "取消置顶" else "置顶",
+                                color = GlassAccent.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .noRipplePressable(pressedScale = 0.96f) {
+                                    editingAnniversary = target
+                                    anniversaryActionTarget = null
+                                }
+                                .glassConcaveOverlay(14.dp)
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "编辑",
+                                color = tokens.textPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deleteAnniversaryTarget = target
+                        anniversaryActionTarget = null
+                    }
+                ) {
+                    Text("删除", color = GlassAccent.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { anniversaryActionTarget = null }) {
+                    Text("关闭", color = tokens.textSecondary)
+                }
+            }
+        )
+    }
+
+    deleteAnniversaryTarget?.let { target ->
+        ConfirmDeleteDialog(
+            message = "确定要删除纪念日 \"${target.title}\" 吗？",
+            onConfirm = {
+                deleteAnniversaryTarget = null
+                vm.deleteAnniversary(target.id)
+            },
+            onDismiss = { deleteAnniversaryTarget = null }
+        )
+    }
+
+    editingCheckIn?.let { target ->
+        CheckInEditorDialog(
+            initial = target,
+            onUpload = vm::uploadImage,
+            onDismiss = { editingCheckIn = null },
+            onSave = { imageUrl, note ->
+                editingCheckIn = null
+                vm.updateCheckIn(target, imageUrl, note)
+            }
+        )
+    }
+
+    checkInActionTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { checkInActionTarget = null },
+            modifier = Modifier.glassConvexOverlay(24.dp),
+            shape = RoundedCornerShape(24.dp),
+            containerColor = Color.Transparent,
+            title = {
+                Text(
+                    "美食日记",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = GlassAccent.primaryDark
+                )
+            },
+            text = {
+                Text(
+                    "想要编辑或删除这条成品打卡吗？",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = tokens.textPrimary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        editingCheckIn = target
+                        checkInActionTarget = null
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+                ) {
+                    Text("编辑", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { checkInActionTarget = null }) {
+                        Text("取消", color = tokens.textSecondary)
+                    }
+                    TextButton(
+                        onClick = {
+                            deleteCheckInTarget = target
+                            checkInActionTarget = null
+                        }
+                    ) {
+                        Text("删除", color = GlassAccent.error)
+                    }
+                }
+            }
+        )
+    }
+
+    deleteCheckInTarget?.let { target ->
+        ConfirmDeleteDialog(
+            message = "确定要删除这条美食日记吗？此操作无法撤销。",
+            onConfirm = {
+                deleteCheckInTarget = null
+                vm.deleteCheckIn(target)
+            },
+            onDismiss = { deleteCheckInTarget = null }
+        )
+    }
+
+    lightboxCheckIn?.let { target ->
+        PhotoLightboxDialog(
+            imageUrl = target.imageUrl,
+            caption = target.note.takeIf { it.isNotBlank() },
+            onDismiss = { lightboxCheckIn = null }
+        )
+    }
+}
+
+@Composable
+private fun NotesBoardContent(
+    state: DiscoverUiState,
+    onAddAnniversary: () -> Unit,
+    onAnniversaryClick: (Anniversary) -> Unit,
+    onAddNote: () -> Unit,
+    onNoteLongClick: (Announcement) -> Unit,
+    onNoteDeleteRequest: (Announcement) -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            SectionActionHeader(
+                title = "纪念日",
+                actionLabel = "添加",
+                onAction = onAddAnniversary
+            )
+        }
+
+        item {
+            if (state.anniversaries.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .noRipplePressable(pressedScale = 0.98f, onClick = onAddAnniversary)
+                        .glassConcave(18.dp)
+                        .padding(horizontal = 16.dp, vertical = 18.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = GlassAccent.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "添加你们的第一个纪念日 / 倒计时",
+                            color = GlassAccent.primary,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            } else {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(vertical = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(state.anniversaries, key = { it.id }) { item ->
+                        AnniversaryCard(
+                            item = item,
+                            onClick = { onAnniversaryClick(item) }
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Spacer(Modifier.height(4.dp))
+            SectionActionHeader(
+                title = "冰箱贴",
+                actionLabel = "写纸条",
+                onAction = onAddNote
+            )
+        }
+
+        if (state.notes.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .noRipplePressable(pressedScale = 0.98f, onClick = onAddNote)
+                        .glassConcave(20.dp)
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "冰箱门还空着，贴上第一张小纸条吧~",
+                        color = tokens.textSecondary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        } else {
+            items(state.notes, key = { it.id }) { note ->
+                val canManage = state.isAdmin || (note.createdBy ?: note.updatedBy) == state.currentUser?.id
+                SwipeRevealBox(
+                    swipeEnabled = canManage,
+                    onDeleteClick = { onNoteDeleteRequest(note) }
+                ) {
+                    FridgeNoteCard(
+                        note = note,
+                        onLongClick = { onNoteLongClick(note) }
+                    )
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun SectionActionHeader(
+    title: String,
+    actionLabel: String,
+    onAction: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+            color = tokens.textPrimary
+        )
+        Box(
+            modifier = Modifier
+                .noRipplePressable(pressedScale = 0.94f, onClick = onAction)
+                .glassConvex(14.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    tint = GlassAccent.primary,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = actionLabel,
+                    color = GlassAccent.primary,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnniversaryCard(
+    item: Anniversary,
+    onClick: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    val badgeText = when {
+        item.isToday -> "就是今天"
+        item.type == "countup" && item.isPast -> "即将到来"
+        item.type == "countup" -> "已在一起"
+        item.isPast -> "已过去"
+        else -> "倒计时"
+    }
+    val bigNumberText = when {
+        item.isToday -> "今天 🎉"
+        item.type == "countup" && item.isPast -> "还有 ${item.daysCount} 天"
+        item.type == "countup" -> "${item.daysCount} 天"
+        item.isPast -> "已过 ${item.daysCount} 天"
+        else -> "还有 ${item.daysCount} 天"
+    }
+    val footerText = when {
+        item.nextAnniversaryDays == 0L -> "${item.eventDate} · 周年纪念 🎉"
+        item.nextAnniversaryDays != null -> "${item.eventDate} · 周年还有 ${item.nextAnniversaryDays} 天"
+        item.note.isNotBlank() -> "${item.eventDate} · ${item.note}"
+        else -> item.eventDate
+    }
+
+    Box(
+        modifier = Modifier
+            .width(178.dp)
+            .noRippleCombinedPressable(
+                pressedScale = 0.97f,
+                onLongClick = onClick,
+                onClick = onClick
+            )
+            .then(
+                if (item.pinned) {
+                    Modifier.border(BorderStroke(1.dp, GlassAccent.edge), RoundedCornerShape(20.dp))
+                } else {
+                    Modifier
+                }
+            )
+            .glassConvex(20.dp)
+            .padding(14.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (item.pinned) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "已置顶",
+                            tint = GlassAccent.primary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = tokens.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .background(GlassAccent.wash, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = badgeText,
+                        color = GlassAccent.primary,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            }
+
+            Text(
+                text = bigNumberText,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                color = if (item.isToday) GlassAccent.primaryDark else GlassAccent.primary,
+                maxLines = 1
+            )
+
+            Text(
+                text = footerText,
+                style = MaterialTheme.typography.labelSmall,
+                color = tokens.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun FridgeNoteCard(
+    note: Announcement,
+    onLongClick: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .noRippleCombinedPressable(
+                pressedScale = 0.985f,
+                onLongClick = onLongClick,
+                onClick = {}
+            )
+            .then(
+                if (note.pinned) {
+                    Modifier.border(BorderStroke(1.dp, GlassAccent.edge), RoundedCornerShape(20.dp))
+                } else {
+                    Modifier
+                }
+            )
+            .glassConvex(20.dp)
+            .padding(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    UserMiniAvatar(note.authorAvatar, size = 22.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = note.authorName ?: "小厨房成员",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = tokens.textPrimary
+                    )
+                    if (note.pinned) {
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(GlassAccent.wash, RoundedCornerShape(10.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "置顶",
+                                color = GlassAccent.primary,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = (note.updatedAt ?: note.createdAt)?.take(10).orEmpty(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tokens.textSecondary
+                )
+            }
+
+            Text(
+                text = note.content,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                color = tokens.textPrimary,
+                lineHeight = 22.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun DiaryContent(
+    state: DiscoverUiState,
+    onOpenOrder: (Long) -> Unit,
+    onGoOrders: () -> Unit,
+    onImageClick: (OrderCheckIn) -> Unit,
+    onLongClick: (OrderCheckIn) -> Unit,
+    onLoadMore: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    val currentUserId = state.currentUser?.id ?: -1L
+
+    if (state.diaryEntries.isEmpty() && !state.loading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 24.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glassConvex(24.dp)
+                    .padding(24.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "美食日记还是空的",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                        color = tokens.textPrimary
+                    )
+                    Text(
+                        text = "订单完成后，在订单详情里上传成品照和一句小记，就会沉淀到这里。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = tokens.textSecondary
+                    )
+                    Button(
+                        onClick = onGoOrders,
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+                    ) {
+                        Text("去订单页看看", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        items(state.diaryEntries, key = { it.id }) { entry ->
+            val canManage = state.isAdmin || entry.userId == currentUserId
+            DiaryTimelineItem(
+                entry = entry,
+                canManage = canManage,
+                onImageClick = { onImageClick(entry) },
+                onLongClick = { if (canManage) onLongClick(entry) },
+                onOpenOrder = { onOpenOrder(entry.orderId) }
+            )
+        }
+
+        if (state.diaryEntries.size < state.diaryTotal) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .noRipplePressable(enabled = !state.loadingMoreDiary, pressedScale = 0.97f, onClick = onLoadMore)
+                        .glassConcave(18.dp)
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (state.loadingMoreDiary) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = GlassAccent.primary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "加载更多",
+                            color = GlassAccent.primary,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun DiaryTimelineItem(
+    entry: OrderCheckIn,
+    canManage: Boolean,
+    onImageClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onOpenOrder: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(GlassAccent.primary, CircleShape)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = entry.createdAt?.take(16).orEmpty(),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = tokens.textSecondary
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .noRippleCombinedPressable(
+                    pressedScale = 0.985f,
+                    onLongClick = if (canManage) onLongClick else null,
+                    onClick = onImageClick
+                )
+                .glassConvex(22.dp)
+                .padding(14.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                AsyncImage(
+                    model = realImageUrl(entry.imageUrl),
+                    contentDescription = "美食日记图片",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(GlassAccent.wash),
+                    contentScale = ContentScale.Crop
+                )
+
+                if (entry.dishNames.isNotEmpty()) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(entry.dishNames.take(5)) { dishName ->
+                            Box(
+                                modifier = Modifier
+                                    .background(GlassAccent.wash, RoundedCornerShape(10.dp))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = dishName,
+                                    color = GlassAccent.primaryDark,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (entry.note.isNotBlank()) {
+                    Text(
+                        text = entry.note,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                        color = tokens.textPrimary,
+                        lineHeight = 22.sp
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        UserMiniAvatar(entry.authorAvatar, size = 22.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = entry.authorName ?: "成员",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = tokens.textPrimary
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(GlassAccent.wash, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = if (entry.roleTag == "chef") "掌勺打卡" else "食客打卡",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = GlassAccent.primary
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .noRipplePressable(pressedScale = 0.94f, onClick = onOpenOrder)
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "查看订单",
+                            color = GlassAccent.primary,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = GlassAccent.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoteEditorDialog(
+    initial: Announcement?,
+    onDismiss: () -> Unit,
+    onSave: (String, Boolean) -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    var content by remember { mutableStateOf(initial?.content ?: "") }
+    var pinned by remember { mutableStateOf(initial?.pinned ?: false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
+        title = {
+            Text(
+                if (initial == null) "贴一张小纸条" else "编辑小纸条",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                color = GlassAccent.primaryDark
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { if (it.length <= 500) content = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("写点什么（最多500字）") },
+                    shape = RoundedCornerShape(16.dp),
+                    minLines = 4,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
+                    )
+                )
+                TogglePillRow(
+                    label = "置顶到顶部",
+                    checked = pinned,
+                    onToggle = { pinned = !pinned }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(content.trim(), pinned) },
+                enabled = content.trim().isNotEmpty(),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+            ) {
+                Text("保存", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = tokens.textSecondary)
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AnniversaryEditorDialog(
+    initial: Anniversary?,
+    onDismiss: () -> Unit,
+    onSave: (AnniversarySaveRequest) -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    val initialDate = remember(initial) {
+        initial?.eventDate?.takeIf { it.isNotBlank() } ?: formatLocalDateString(Date())
+    }
+    var title by remember { mutableStateOf(initial?.title ?: "") }
+    var type by remember { mutableStateOf(initial?.type ?: "countdown") }
+    var eventDate by remember { mutableStateOf(initialDate) }
+    var repeatYearly by remember { mutableStateOf(initial?.repeatYearly ?: true) }
+    var pinned by remember { mutableStateOf(initial?.pinned ?: false) }
+    var note by remember { mutableStateOf(initial?.note ?: "") }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
+        title = {
+            Text(
+                if (initial == null) "新增纪念日" else "编辑纪念日",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                color = GlassAccent.primaryDark
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { if (it.length <= 60) title = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("纪念日名称") },
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
+                    )
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val isCountup = type == "countup"
+                    val isCountdown = type == "countdown"
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .noRipplePressable(pressedScale = 0.96f) { type = "countup" }
+                            .background(if (isCountup) GlassAccent.primary else GlassAccent.wash, RoundedCornerShape(14.dp))
+                            .padding(vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "正数纪念日",
+                            color = if (isCountup) Color.White else tokens.textPrimary,
+                            fontWeight = if (isCountup) FontWeight.Bold else FontWeight.Medium,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .noRipplePressable(pressedScale = 0.96f) { type = "countdown" }
+                            .background(if (isCountdown) GlassAccent.primary else GlassAccent.wash, RoundedCornerShape(14.dp))
+                            .padding(vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "倒计时",
+                            color = if (isCountdown) Color.White else tokens.textPrimary,
+                            fontWeight = if (isCountdown) FontWeight.Bold else FontWeight.Medium,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .noRipplePressable(pressedScale = 0.98f) { showDatePicker = true }
+                        .glassConcaveOverlay(16.dp)
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "纪念日期",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = tokens.textSecondary
+                        )
+                        Text(
+                            text = eventDate,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = GlassAccent.primary
+                        )
+                    }
+                }
+
+                TogglePillRow(
+                    label = "每年循环",
+                    checked = repeatYearly,
+                    onToggle = { repeatYearly = !repeatYearly }
+                )
+
+                TogglePillRow(
+                    label = "置顶展示",
+                    checked = pinned,
+                    onToggle = { pinned = !pinned }
+                )
+
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { if (it.length <= 200) note = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("备注（可选）") },
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        AnniversarySaveRequest(
+                            title = title.trim(),
+                            eventDate = eventDate,
+                            type = type,
+                            repeatYearly = repeatYearly,
+                            pinned = pinned,
+                            note = note.trim()
+                        )
+                    )
+                },
+                enabled = title.trim().isNotEmpty(),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+            ) {
+                Text("保存", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = tokens.textSecondary)
+            }
+        }
+    )
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = parseUtcDateMillis(eventDate)
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            shape = RoundedCornerShape(24.dp),
+            colors = DatePickerDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.glassConvexOverlay(24.dp),
+            confirmButton = {
+                Button(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            eventDate = formatUtcDateMillis(millis)
+                        }
+                        showDatePicker = false
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+                ) {
+                    Text("确定", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("取消", color = tokens.textSecondary)
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(containerColor = Color.Transparent)
+            )
+        }
+    }
+}
+
+@Composable
+internal fun CheckInEditorDialog(
+    initial: OrderCheckIn?,
+    onUpload: (bytes: ByteArray, fileName: String, onSuccess: (String) -> Unit, onFailure: () -> Unit) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    var imageUrl by remember { mutableStateOf(initial?.imageUrl ?: "") }
+    var note by remember { mutableStateOf(initial?.note ?: "") }
+    var uploading by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
+        title = {
+            Text(
+                if (initial == null) "成品打卡" else "编辑打卡",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                color = GlassAccent.primaryDark
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                DirectImageUploadField(
+                    value = imageUrl,
+                    label = "出锅成品照",
+                    emptyText = "点击选择成品照片",
+                    uploading = uploading,
+                    filePrefix = "checkin",
+                    onUpload = onUpload,
+                    onUploadingChange = { uploading = it },
+                    onValueChange = { imageUrl = it },
+                    previewHeight = 160.dp
+                )
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { if (it.length <= 300) note = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("写一句小记（可选）") },
+                    shape = RoundedCornerShape(16.dp),
+                    minLines = 2,
+                    maxLines = 4,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(imageUrl.trim(), note.trim()) },
+                enabled = !uploading && imageUrl.isNotBlank(),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+            ) {
+                Text("保存", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !uploading) {
+                Text("取消", color = tokens.textSecondary)
+            }
+        }
+    )
+}
+
+@Composable
+private fun TogglePillRow(
+    label: String,
+    checked: Boolean,
+    onToggle: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .noRipplePressable(pressedScale = 0.98f, onClick = onToggle)
+            .glassConcaveOverlay(16.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+            color = tokens.textPrimary
+        )
+        Box(
+            modifier = Modifier
+                .background(
+                    if (checked) GlassAccent.primary else GlassAccent.wash,
+                    RoundedCornerShape(12.dp)
+                )
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = if (checked) "已开启" else "未开启",
+                color = if (checked) Color.White else tokens.textSecondary,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+            )
+        }
+    }
+}
+
+private fun formatLocalDateString(date: Date): String {
+    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    return sdf.format(date)
+}
+
+private fun parseUtcDateMillis(dateStr: String): Long? {
+    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
+    return runCatching { sdf.parse(dateStr)?.time }.getOrNull()
+}
+
+private fun formatUtcDateMillis(millis: Long): String {
+    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
+    return sdf.format(Date(millis))
+}

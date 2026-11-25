@@ -1,5 +1,8 @@
 package com.xixikitchen.jetpack.data
 
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 
 class KitchenRepository @Inject constructor(
@@ -61,11 +64,68 @@ class KitchenRepository @Inject constructor(
     suspend fun completeOrder(token: String, id: Long) = api().completeOrder(auth(token), id).unwrap()
 
     suspend fun announcements(token: String) = api().announcements(auth(token)).unwrap()
-    suspend fun addAnnouncement(token: String, content: String) =
-        api().addAnnouncement(auth(token), mapOf("content" to content)).unwrap()
-    suspend fun updateAnnouncement(token: String, id: Long, content: String) =
-        api().updateAnnouncement(auth(token), mapOf("id" to id, "content" to content)).unwrap()
+    suspend fun addAnnouncement(token: String, content: String, pinned: Boolean = false) =
+        api().addAnnouncement(auth(token), mapOf("content" to content, "pinned" to pinned)).unwrap()
+    suspend fun updateAnnouncement(token: String, id: Long, content: String, pinned: Boolean? = null): String {
+        val body = buildMap<String, Any> {
+            put("id", id)
+            put("content", content)
+            if (pinned != null) put("pinned", pinned)
+        }
+        return api().updateAnnouncement(auth(token), body).unwrap()
+    }
+    suspend fun pinAnnouncement(token: String, id: Long, pinned: Boolean) =
+        api().pinAnnouncement(auth(token), id, PinPayload(pinned)).unwrap()
     suspend fun deleteAnnouncement(token: String, id: Long) = api().deleteAnnouncement(auth(token), id).unwrap()
+
+    suspend fun anniversaries(token: String) = api().anniversaries(auth(token)).unwrap()
+    suspend fun addAnniversary(token: String, req: AnniversarySaveRequest) =
+        api().addAnniversary(auth(token), req).unwrap()
+    suspend fun updateAnniversary(token: String, id: Long, req: AnniversarySaveRequest) =
+        api().updateAnniversary(auth(token), id, req).unwrap()
+    suspend fun pinAnniversary(token: String, id: Long, pinned: Boolean) =
+        api().pinAnniversary(auth(token), id, PinPayload(pinned)).unwrap()
+    suspend fun deleteAnniversary(token: String, id: Long) = api().deleteAnniversary(auth(token), id).unwrap()
+
+    suspend fun checkIns(token: String, page: Int = 1, pageSize: Int = 20) =
+        api().checkIns(auth(token), page, pageSize).unwrap()
+    suspend fun orderCheckIns(token: String, orderId: Long) =
+        api().orderCheckIns(auth(token), orderId).unwrap()
+    suspend fun addCheckIn(token: String, req: CheckInCreateRequest) =
+        api().addCheckIn(auth(token), req).unwrap()
+    suspend fun updateCheckIn(token: String, id: Long, req: CheckInUpdateRequest) =
+        api().updateCheckIn(auth(token), id, req).unwrap()
+    suspend fun deleteCheckIn(token: String, id: Long) =
+        api().deleteCheckIn(auth(token), id).unwrap()
+
+    suspend fun uploadImageBytes(token: String, bytes: ByteArray, fileName: String): String {
+        val lowerName = fileName.lowercase()
+        val allowedExtension = lowerName.endsWith(".jpg") ||
+            lowerName.endsWith(".jpeg") ||
+            lowerName.endsWith(".png") ||
+            lowerName.endsWith(".gif") ||
+            lowerName.endsWith(".webp")
+        if (!allowedExtension) {
+            throw IllegalArgumentException("仅支持 jpg、jpeg、png、gif、webp 图片")
+        }
+        if (bytes.isEmpty()) {
+            throw IllegalArgumentException("上传文件不能为空")
+        }
+        val maxSizeBytes = 5 * 1024 * 1024
+        if (bytes.size > maxSizeBytes) {
+            throw IllegalArgumentException("图片不能超过 5MB")
+        }
+
+        val mimeType = when {
+            fileName.endsWith(".png", ignoreCase = true) -> "image/png"
+            fileName.endsWith(".gif", ignoreCase = true) -> "image/gif"
+            fileName.endsWith(".webp", ignoreCase = true) -> "image/webp"
+            else -> "image/jpeg"
+        }
+        val requestFile = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+        val part = MultipartBody.Part.createFormData("file", fileName, requestFile)
+        return uploadFile(token, part).url
+    }
 
     suspend fun adminUsers(token: String) = api().adminUsers(auth(token)).unwrap()
     suspend fun addUser(token: String, user: UserEditorPayload) = api().addUser(auth(token), user).unwrap()

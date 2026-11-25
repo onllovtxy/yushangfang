@@ -49,7 +49,74 @@ data class Dish(
 data class Announcement(
     val id: Long = 0,
     val content: String = "",
+    val pinned: Boolean = false,
+    val pinnedAt: String? = null,
+    val createdBy: Long? = null,
+    val updatedBy: Long? = null,
+    val authorName: String? = null,
+    val authorAvatar: String? = null,
+    val createdAt: String? = null,
     val updatedAt: String? = null
+)
+
+data class PinPayload(val pinned: Boolean)
+
+data class Anniversary(
+    val id: Long = 0,
+    val title: String = "",
+    val eventDate: String = "",
+    val type: String = "countdown",
+    val repeatYearly: Boolean = true,
+    val pinned: Boolean = false,
+    val note: String = "",
+    val createdBy: Long? = null,
+    val creatorName: String? = null,
+    val daysCount: Long = 0,
+    val isToday: Boolean = false,
+    val isPast: Boolean = false,
+    val nextAnniversaryDays: Long? = null
+)
+
+data class AnniversarySaveRequest(
+    val title: String,
+    val eventDate: String,
+    val type: String,
+    val repeatYearly: Boolean,
+    val pinned: Boolean,
+    val note: String
+)
+
+data class OrderCheckIn(
+    val id: Long = 0,
+    val orderId: Long = 0,
+    val orderNo: String? = null,
+    val userId: Long = 0,
+    val authorName: String? = null,
+    val authorAvatar: String? = null,
+    val roleTag: String = "chef",
+    val imageUrl: String = "",
+    val note: String = "",
+    val dishNames: List<String> = emptyList(),
+    val chefName: String? = null,
+    val dinerName: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+
+data class CheckInPage(
+    val total: Long = 0,
+    val list: List<OrderCheckIn> = emptyList()
+)
+
+data class CheckInCreateRequest(
+    val orderId: Long,
+    val imageUrl: String,
+    val note: String
+)
+
+data class CheckInUpdateRequest(
+    val imageUrl: String? = null,
+    val note: String? = null
 )
 
 data class OrderCreateRequest(
@@ -65,6 +132,12 @@ data class OrderPage(
     val list: List<Order> = emptyList()
 )
 
+data class OrderUserInfo(
+    val id: Long = 0,
+    val nickname: String? = null,
+    val avatarUrl: String? = null
+)
+
 data class Order(
     val id: Long = 0,
     val orderNo: String = "",
@@ -74,6 +147,10 @@ data class Order(
     val fromUserId: Long = 0,
     val toUserId: Long = 0,
     val createdAt: String? = null,
+    val acceptedAt: String? = null,
+    val completedAt: String? = null,
+    val fromUser: OrderUserInfo? = null,
+    val toUser: OrderUserInfo? = null,
     val items: List<OrderItem> = emptyList()
 )
 
