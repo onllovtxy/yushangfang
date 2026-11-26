@@ -1,6 +1,10 @@
 package com.xixikitchen.jetpack.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -28,7 +32,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -44,6 +51,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,11 +66,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.xixikitchen.jetpack.ui.KitchenUiState
 import com.xixikitchen.jetpack.ui.KitchenViewModel
 import com.xixikitchen.jetpack.ui.components.ListAction
+import com.xixikitchen.jetpack.ui.components.SuperAdminSpaceBanner
+import com.xixikitchen.jetpack.ui.components.UserMiniAvatar
 import com.xixikitchen.jetpack.ui.components.realImageUrl
 import com.xixikitchen.jetpack.ui.designsystem.motion.SpringSettle
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
@@ -71,6 +82,7 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcave
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
 import com.xixikitchen.jetpack.ui.noRippleCombinedPressable
+import com.xixikitchen.jetpack.ui.noRipplePressable
 import com.xixikitchen.jetpack.ui.pressScale
 import com.xixikitchen.jetpack.ui.readAndCompressImage
 import kotlinx.coroutines.Dispatchers
@@ -81,7 +93,14 @@ import kotlinx.coroutines.withContext
 @Composable
 fun MineScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostController) {
     val tokens = LocalGlassTokens.current
+    val context = LocalContext.current
     var editProfile by remember { mutableStateOf(false) }
+    var showPairDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        vm.refreshCoupleSpace()
+    }
+
     Scaffold(
         modifier = Modifier.statusBarsPadding(),
         containerColor = Color.Transparent
@@ -94,6 +113,17 @@ fun MineScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControll
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
+
+            if (state.isSuperAdmin) {
+                item {
+                    SuperAdminSpaceBanner(
+                        isSuperAdmin = true,
+                        currentSpace = state.coupleSpace,
+                        spaces = state.allCoupleSpaces,
+                        onSelectSpace = vm::selectCoupleSpace
+                    )
+                }
+            }
 
             item {
                 Box(
@@ -139,20 +169,160 @@ fun MineScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControll
                             }
                         }
                         Spacer(Modifier.width(16.dp))
-                        Text(
-                            text = state.user?.nickname ?: "美味食客",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                            color = tokens.textPrimary
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = state.user?.nickname ?: "美味食客",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                                color = tokens.textPrimary
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = if (state.isSuperAdmin) "超级管理员 · 长按修改昵称头像" else "长按卡片修改昵称与头像",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = tokens.textSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (!state.isSuperAdmin) {
+                item {
+                    val space = state.coupleSpace
+                    val partner = space?.partner ?: state.recipients.firstOrNull()?.let {
+                        com.xixikitchen.jetpack.data.OrderUserInfo(it.id, it.nickname, it.avatarUrl)
+                    }
+                    val isPaired = space?.paired == true || partner != null
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .glassConvex(22.dp)
+                            .padding(18.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Favorite,
+                                        contentDescription = null,
+                                        tint = GlassAccent.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = space?.name?.takeIf { it.isNotBlank() } ?: "我的小厨房空间",
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                        color = tokens.textPrimary
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(GlassAccent.wash, RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = if (isPaired) "已配对" else "单人模式",
+                                        color = GlassAccent.primary,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
+                            }
+
+                            if (isPaired) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .glassConcave(16.dp)
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    UserMiniAvatar(partner?.avatarUrl, size = 34.dp)
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "伴侣：${partner?.nickname ?: "另一半"}",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = tokens.textPrimary
+                                        )
+                                        Text(
+                                            text = "菜单、订单、小纸条、纪念日与票根已独立双人共管",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = tokens.textSecondary
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "未配对前可先自由维护自己的菜单、纪念日和美食票根；配对后双方数据会自动合并进同一空间。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = tokens.textSecondary,
+                                    lineHeight = 18.sp
+                                )
+
+                                val myPairCode = space?.pairCode.orEmpty()
+                                if (myPairCode.isNotBlank()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .noRipplePressable(pressedScale = 0.98f) {
+                                                copyToClipboard(context, "情侣配对码", myPairCode)
+                                            }
+                                            .glassConcave(16.dp)
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "我的专属配对码（点击复制发给伴侣）",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = tokens.textSecondary
+                                            )
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(
+                                                text = myPairCode,
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    letterSpacing = 2.sp
+                                                ),
+                                                color = GlassAccent.primaryDark
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.ContentCopy,
+                                            contentDescription = "复制配对码",
+                                            tint = GlassAccent.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = { showPairDialog = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+                                ) {
+                                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("输入伴侣配对码绑定", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
                 }
             }
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (state.isAdmin) {
-                        ListAction("管理后台", Icons.Default.AdminPanelSettings) { nav.navigate("admin") }
-                    }
+                    ListAction(
+                        title = if (state.isSuperAdmin) "超管控制台" else "厨房与菜单管理",
+                        icon = Icons.Default.AdminPanelSettings
+                    ) { nav.navigate("admin") }
                     ListAction("设置", Icons.Default.Settings) { nav.navigate("settings") }
                     ListAction("退出登录", Icons.Default.Person) { vm.logout() }
                 }
@@ -172,7 +342,86 @@ fun MineScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControll
                 }
             )
         }
+
+        if (showPairDialog) {
+            PairByCodeDialog(
+                loading = state.loading,
+                onDismiss = { showPairDialog = false },
+                onConfirm = { code ->
+                    vm.bindPartnerByCode(code) {
+                        showPairDialog = false
+                    }
+                }
+            )
+        }
     }
+}
+
+private fun copyToClipboard(context: Context, label: String, text: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    clipboard?.setPrimaryClip(ClipData.newPlainText(label, text))
+    Toast.makeText(context, "已复制: $text", Toast.LENGTH_SHORT).show()
+}
+
+@Composable
+private fun PairByCodeDialog(
+    loading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    var pairCode by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
+        title = {
+            Text(
+                "绑定另一半",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                color = GlassAccent.primaryDark
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "输入对方的 8 位专属配对码，系统会把你们的菜品分类、订单、小纸条、纪念日和美食票根自动合并到同一个情侣空间。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = tokens.textSecondary,
+                    lineHeight = 18.sp
+                )
+                OutlinedTextField(
+                    value = pairCode,
+                    onValueChange = { pairCode = it.uppercase().take(16) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("对方配对码") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(pairCode.trim()) },
+                enabled = !loading && pairCode.trim().length >= 4,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+            ) {
+                Text("确认绑定", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !loading) {
+                Text("取消", color = tokens.textSecondary)
+            }
+        }
+    )
 }
 
 @Composable

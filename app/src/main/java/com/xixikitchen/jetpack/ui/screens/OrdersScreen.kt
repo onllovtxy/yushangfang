@@ -48,6 +48,7 @@ import com.xixikitchen.jetpack.ui.KitchenUiState
 import com.xixikitchen.jetpack.ui.KitchenViewModel
 import com.xixikitchen.jetpack.ui.components.DishThumbnail
 import com.xixikitchen.jetpack.ui.components.StatusFilterChip
+import com.xixikitchen.jetpack.ui.components.SuperAdminSpaceBanner
 import com.xixikitchen.jetpack.ui.components.UserMiniAvatar
 import com.xixikitchen.jetpack.ui.components.rememberPullRefreshState
 import com.xixikitchen.jetpack.ui.components.statusText
@@ -103,6 +104,15 @@ fun OrdersScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostContro
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
             ) {
+                if (state.isSuperAdmin) {
+                    SuperAdminSpaceBanner(
+                        isSuperAdmin = true,
+                        currentSpace = state.coupleSpace,
+                        spaces = state.allCoupleSpaces,
+                        onSelectSpace = vm::selectCoupleSpace,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier

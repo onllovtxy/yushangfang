@@ -176,7 +176,11 @@ fun XixiKitchenApp(
                                 ) {
                                     DiscoverScreen(
                                         state = discoverState,
-                                        vm = discoverVm
+                                        vm = discoverVm,
+                                        isSuperAdmin = state.isSuperAdmin,
+                                        currentSpace = state.coupleSpace,
+                                        allSpaces = state.allCoupleSpaces,
+                                        onSelectSpace = vm::selectCoupleSpace
                                     )
                                 }
                             }

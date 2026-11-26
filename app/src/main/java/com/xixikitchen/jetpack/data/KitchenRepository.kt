@@ -11,7 +11,12 @@ class KitchenRepository @Inject constructor(
 ) {
     val session = sessionStore.session
     val backendBaseUrl = sessionStore.backendBaseUrl
+    val selectedCoupleId = sessionStore.selectedCoupleId
     val sessionExpired = sessionStore.sessionExpired
+    val spaceRefreshEvents = sessionStore.spaceRefreshEvents
+
+    fun selectCoupleSpace(coupleId: Long?) = sessionStore.setSelectedCoupleId(coupleId)
+    fun notifySpaceChanged() = sessionStore.notifySpaceChanged()
 
     suspend fun login(username: String, password: String): Session {
         val payload = api().login(LoginRequest(username, password)).unwrap()
@@ -20,8 +25,8 @@ class KitchenRepository @Inject constructor(
         return Session(payload.token, user)
     }
 
-    suspend fun register(username: String, password: String): Session {
-        val payload = api().register(RegisterRequest(username, password)).unwrap()
+    suspend fun register(username: String, password: String, inviteCode: String): Session {
+        val payload = api().register(RegisterRequest(username, password, inviteCode)).unwrap()
         val user = payload.userInfo ?: error("注册响应缺少用户信息")
         sessionStore.save(payload.token, user)
         return Session(payload.token, user)
@@ -54,6 +59,9 @@ class KitchenRepository @Inject constructor(
 
     suspend fun recipients(token: String) = api().recipients(auth(token)).unwrap()
     suspend fun updateProfile(token: String, request: ProfileUpdateRequest) = api().updateProfile(auth(token), request).unwrap()
+    suspend fun coupleSpace(token: String) = api().coupleSpace(auth(token)).unwrap()
+    suspend fun coupleSpaces(token: String) = api().coupleSpaces(auth(token)).unwrap()
+    suspend fun pairByCode(token: String, pairCode: String) = api().pairByCode(auth(token), PairRequest(pairCode)).unwrap()
     suspend fun uploadFile(token: String, file: okhttp3.MultipartBody.Part) = api().uploadFile(auth(token), file).unwrap()
 
     suspend fun createOrder(token: String, request: OrderCreateRequest) = api().createOrder(auth(token), request).unwrap()
@@ -148,6 +156,13 @@ class KitchenRepository @Inject constructor(
     suspend fun deleteUser(token: String, id: Long) = api().deleteUser(auth(token), id).unwrap()
     suspend fun adminOrders(token: String, status: Int? = null) = api().adminOrders(auth(token), status).unwrap()
     suspend fun deleteOrder(token: String, id: Long) = api().deleteOrder(auth(token), id).unwrap()
+
+    suspend fun inviteCodes(token: String) = api().inviteCodes(auth(token)).unwrap()
+    suspend fun createInviteCode(token: String, req: InviteCodeCreateRequest) =
+        api().createInviteCode(auth(token), req).unwrap()
+    suspend fun toggleInviteCode(token: String, id: Long, enabled: Boolean) =
+        api().toggleInviteCode(auth(token), id, EnabledPayload(enabled)).unwrap()
+    suspend fun deleteInviteCode(token: String, id: Long) = api().deleteInviteCode(auth(token), id).unwrap()
 
     private fun auth(token: String) = "Bearer $token"
     private fun api(): ApiService = apiClient.service()

@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -39,6 +40,7 @@ class SessionStore(private val context: Context) {
 
     private val sessionState = MutableStateFlow(readSession())
     private val backendBaseUrlState = MutableStateFlow(readBackendBaseUrl())
+    private val selectedCoupleIdState = MutableStateFlow<Long?>(null)
 
     // 登录态被服务端判定失效时的一次性通知。用 SharedFlow 而不是 StateFlow：
     // 这是"发生了一次过期事件"，不是一种持续状态，重复收集不该重复触发。
@@ -47,17 +49,39 @@ class SessionStore(private val context: Context) {
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
 
+    // 超管切换情侣空间或普通用户完成伴侣配对后，通知各 ViewModel 刷新数据
+    private val _spaceRefreshEvents = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
     val session: Flow<Session> = sessionState.asStateFlow()
     val backendBaseUrl: Flow<String> = backendBaseUrlState.asStateFlow()
+    val selectedCoupleId: StateFlow<Long?> = selectedCoupleIdState.asStateFlow()
     val sessionExpired: SharedFlow<Unit> = expiredEvents.asSharedFlow()
+    val spaceRefreshEvents: SharedFlow<Unit> = _spaceRefreshEvents.asSharedFlow()
 
     fun sessionSnapshot(): Session = sessionState.value
+
+    fun selectedCoupleIdSnapshot(): Long? = selectedCoupleIdState.value
+
+    fun setSelectedCoupleId(coupleId: Long?) {
+        if (selectedCoupleIdState.value != coupleId) {
+            selectedCoupleIdState.value = coupleId
+            _spaceRefreshEvents.tryEmit(Unit)
+        }
+    }
+
+    fun notifySpaceChanged() {
+        _spaceRefreshEvents.tryEmit(Unit)
+    }
 
     suspend fun save(token: String, user: User) {
         prefs.edit(commit = true) {
             putString(KEY_TOKEN, token)
             putString(KEY_USER, gson.toJson(user))
         }
+        selectedCoupleIdState.value = null
         sessionState.value = Session(token, user)
     }
 
@@ -73,6 +97,7 @@ class SessionStore(private val context: Context) {
             remove(KEY_TOKEN)
             remove(KEY_USER)
         }
+        selectedCoupleIdState.value = null
         sessionState.value = Session()
     }
 
@@ -94,6 +119,7 @@ class SessionStore(private val context: Context) {
             remove(KEY_TOKEN)
             remove(KEY_USER)
         }
+        selectedCoupleIdState.value = null
         sessionState.value = Session()
         expiredEvents.tryEmit(Unit)
     }

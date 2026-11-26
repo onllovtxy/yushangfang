@@ -58,6 +58,15 @@ interface ApiService {
     @PUT("/api/user/update")
     suspend fun updateProfile(@Header("Authorization") token: String, @Body request: ProfileUpdateRequest): ApiResponse<String>
 
+    @GET("/api/couple/me")
+    suspend fun coupleSpace(@Header("Authorization") token: String): ApiResponse<CoupleSpace>
+
+    @GET("/api/couple/spaces")
+    suspend fun coupleSpaces(@Header("Authorization") token: String): ApiResponse<List<CoupleSpace>>
+
+    @POST("/api/couple/pair")
+    suspend fun pairByCode(@Header("Authorization") token: String, @Body request: PairRequest): ApiResponse<CoupleSpace>
+
     @POST("/api/order/create")
     suspend fun createOrder(@Header("Authorization") token: String, @Body request: OrderCreateRequest): ApiResponse<Any>
 
@@ -222,6 +231,25 @@ interface ApiService {
 
     @DELETE("/api/admin/orders/{id}")
     suspend fun deleteOrder(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
+
+    @GET("/api/admin/invite-codes")
+    suspend fun inviteCodes(@Header("Authorization") token: String): ApiResponse<List<InviteCodeItem>>
+
+    @POST("/api/admin/invite-codes")
+    suspend fun createInviteCode(
+        @Header("Authorization") token: String,
+        @Body request: InviteCodeCreateRequest
+    ): ApiResponse<InviteCodeItem>
+
+    @PUT("/api/admin/invite-codes/{id}/toggle")
+    suspend fun toggleInviteCode(
+        @Header("Authorization") token: String,
+        @Path("id") id: Long,
+        @Body body: EnabledPayload
+    ): ApiResponse<String>
+
+    @DELETE("/api/admin/invite-codes/{id}")
+    suspend fun deleteInviteCode(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
 
     @Multipart
     @POST("/api/file/upload")

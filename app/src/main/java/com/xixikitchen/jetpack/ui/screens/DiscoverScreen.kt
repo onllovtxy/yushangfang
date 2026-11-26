@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import com.xixikitchen.jetpack.data.Anniversary
 import com.xixikitchen.jetpack.data.AnniversarySaveRequest
 import com.xixikitchen.jetpack.data.CoupleNote
+import com.xixikitchen.jetpack.data.CoupleSpace
 import com.xixikitchen.jetpack.data.FoodDiary
 import com.xixikitchen.jetpack.data.FoodDiaryComment
 import com.xixikitchen.jetpack.ui.DiscoverUiState
@@ -74,6 +75,7 @@ import com.xixikitchen.jetpack.ui.components.CropAspectRatio
 import com.xixikitchen.jetpack.ui.components.ImageCropperDialog
 import com.xixikitchen.jetpack.ui.components.PhotoLightboxDialog
 import com.xixikitchen.jetpack.ui.components.StatusFilterChip
+import com.xixikitchen.jetpack.ui.components.SuperAdminSpaceBanner
 import com.xixikitchen.jetpack.ui.components.SwipeRevealBox
 import com.xixikitchen.jetpack.ui.components.TicketStubCard
 import com.xixikitchen.jetpack.ui.components.UserMiniAvatar
@@ -111,7 +113,11 @@ private data class TicketCreatorDraft(
 @Composable
 fun DiscoverScreen(
     state: DiscoverUiState,
-    vm: DiscoverViewModel
+    vm: DiscoverViewModel,
+    isSuperAdmin: Boolean = false,
+    currentSpace: CoupleSpace? = null,
+    allSpaces: List<CoupleSpace> = emptyList(),
+    onSelectSpace: (Long) -> Unit = {}
 ) {
     val tokens = LocalGlassTokens.current
     val context = LocalContext.current
@@ -182,6 +188,15 @@ fun DiscoverScreen(
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
             ) {
+                if (isSuperAdmin && subTab != DiscoverSubTab.Announcements) {
+                    SuperAdminSpaceBanner(
+                        isSuperAdmin = true,
+                        currentSpace = currentSpace,
+                        spaces = allSpaces,
+                        onSelectSpace = onSelectSpace,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
@@ -220,15 +235,7 @@ fun DiscoverScreen(
                             if (replyComment == null) {
                                 commentTarget = diary to null
                             } else {
-                                val currentUserId = state.currentUser?.id ?: -1L
-                                val canDelete = state.isAdmin ||
-                                    replyComment.userId == currentUserId ||
-                                    diary.userId == currentUserId
-                                if (canDelete) {
-                                    commentActionTarget = diary to replyComment
-                                } else {
-                                    commentTarget = diary to replyComment
-                                }
+                                commentActionTarget = diary to replyComment
                             }
                         },
                         onLoadMore = vm::loadMoreDiary
@@ -305,7 +312,6 @@ fun DiscoverScreen(
     }
 
     noteActionTarget?.let { target ->
-        val canManage = state.isAdmin || target.createdBy == state.currentUser?.id
         AlertDialog(
             onDismissRequest = { noteActionTarget = null },
             modifier = Modifier.glassConvexOverlay(24.dp),
@@ -348,38 +354,34 @@ fun DiscoverScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        if (canManage) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .noRipplePressable(pressedScale = 0.96f) {
-                                        editingNote = target
-                                        noteActionTarget = null
-                                    }
-                                    .glassConcaveOverlay(14.dp)
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "编辑",
-                                    color = tokens.textPrimary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .noRipplePressable(pressedScale = 0.96f) {
+                                    editingNote = target
+                                    noteActionTarget = null
+                                }
+                                .glassConcaveOverlay(14.dp)
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "编辑",
+                                color = tokens.textPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
             },
             confirmButton = {
-                if (canManage) {
-                    TextButton(
-                        onClick = {
-                            deleteNoteTarget = target
-                            noteActionTarget = null
-                        }
-                    ) {
-                        Text("删除", color = GlassAccent.error, fontWeight = FontWeight.Bold)
+                TextButton(
+                    onClick = {
+                        deleteNoteTarget = target
+                        noteActionTarget = null
                     }
+                ) {
+                    Text("删除", color = GlassAccent.error, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -832,9 +834,8 @@ private fun NotesBoardContent(
             }
         } else {
             items(state.notes, key = { "note_${it.id}" }) { note ->
-                val canManage = state.isAdmin || note.createdBy == state.currentUser?.id
                 SwipeRevealBox(
-                    swipeEnabled = canManage,
+                    swipeEnabled = true,
                     onDeleteClick = { onNoteDeleteRequest(note) }
                 ) {
                     FridgeNoteCard(
@@ -1157,12 +1158,11 @@ private fun DiaryContent(
             }
         } else {
             items(state.diaryEntries, key = { "diary_${it.id}" }) { entry ->
-                val canManage = state.isAdmin || entry.userId == currentUserId
                 DiaryTicketItem(
                     entry = entry,
-                    canManage = canManage,
+                    canManage = true,
                     onImageClick = { onImageClick(entry) },
-                    onLongClick = { if (canManage) onLongClick(entry) },
+                    onLongClick = { onLongClick(entry) },
                     onCommentClick = { replyComment -> onCommentClick(entry, replyComment) }
                 )
             }

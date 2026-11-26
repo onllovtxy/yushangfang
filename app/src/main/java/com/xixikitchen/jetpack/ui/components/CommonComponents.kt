@@ -26,13 +26,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -76,6 +80,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.xixikitchen.jetpack.data.BackendConfig
+import com.xixikitchen.jetpack.data.CoupleSpace
 import com.xixikitchen.jetpack.data.User
 import com.xixikitchen.jetpack.ui.FallbackFoodAvatar
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
@@ -800,5 +805,137 @@ fun PhotoLightboxDialog(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun SuperAdminSpaceBanner(
+    isSuperAdmin: Boolean,
+    currentSpace: CoupleSpace?,
+    spaces: List<CoupleSpace>,
+    onSelectSpace: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (!isSuperAdmin) return
+    val tokens = LocalGlassTokens.current
+    var showPicker by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .noRipplePressable(pressedScale = 0.985f) { showPicker = true }
+            .glassConvex(18.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "超管视角 · 当前情侣空间",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = GlassAccent.primary
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = currentSpace?.name?.takeIf { it.isNotBlank() } ?: "加载中...",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                color = tokens.textPrimary,
+                maxLines = 1
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .glassConcave(12.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.SwapHoriz,
+                contentDescription = "切换空间",
+                tint = GlassAccent.primary,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = "切换",
+                color = GlassAccent.primary,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+            )
+        }
+    }
+
+    if (showPicker) {
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            modifier = Modifier.glassConvexOverlay(24.dp),
+            shape = RoundedCornerShape(24.dp),
+            containerColor = Color.Transparent,
+            title = {
+                Text(
+                    "切换情侣空间",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                    color = GlassAccent.primaryDark
+                )
+            },
+            text = {
+                if (spaces.isEmpty()) {
+                    Text("暂无可切换的情侣空间", color = tokens.textSecondary)
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(spaces, key = { it.id }) { space ->
+                            val selected = currentSpace?.id == space.id
+                            val memberNames = space.members
+                                .mapNotNull { it.nickname?.takeIf { n -> n.isNotBlank() } }
+                                .joinToString(" & ")
+                                .ifBlank { "暂无成员" }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .noRipplePressable(pressedScale = 0.97f) {
+                                        showPicker = false
+                                        onSelectSpace(space.id)
+                                    }
+                                    .then(
+                                        if (selected) Modifier.glassConvexOverlay(16.dp)
+                                        else Modifier.glassConcave(16.dp)
+                                    )
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = space.name.ifBlank { "空间 #${space.id}" },
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                        color = if (selected) GlassAccent.primaryDark else tokens.textPrimary
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = "成员: $memberNames · 配对码: ${space.pairCode}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = tokens.textSecondary
+                                    )
+                                }
+                                if (selected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "当前选中",
+                                        tint = GlassAccent.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPicker = false }) {
+                    Text("关闭", color = tokens.textSecondary)
+                }
+            }
+        )
     }
 }

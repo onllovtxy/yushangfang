@@ -40,11 +40,27 @@ class ApiClient @Inject constructor(
         response
     }
 
+    // 超级管理员切换查看不同情侣空间时，通过 X-Couple-Id 请求头传递目标空间 ID
+    private val superAdminCoupleHeaderInterceptor = Interceptor { chain ->
+        val original = chain.request()
+        val session = sessionStore.sessionSnapshot()
+        val coupleId = sessionStore.selectedCoupleIdSnapshot()
+        val request = if (session.user?.role == "super_admin" && coupleId != null && original.header("X-Couple-Id") == null) {
+            original.newBuilder()
+                .header("X-Couple-Id", coupleId.toString())
+                .build()
+        } else {
+            original
+        }
+        chain.proceed(request)
+    }
+
     private val okHttp = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .writeTimeout(20, TimeUnit.SECONDS)
         .callTimeout(30, TimeUnit.SECONDS)
+        .addInterceptor(superAdminCoupleHeaderInterceptor)
         .addInterceptor(sessionExpiryInterceptor)
         .addInterceptor(loggingInterceptor)
         .build()

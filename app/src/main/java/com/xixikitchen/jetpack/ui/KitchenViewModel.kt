@@ -6,7 +6,10 @@ import com.xixikitchen.jetpack.data.Announcement
 import com.xixikitchen.jetpack.data.BackendConfig
 import com.xixikitchen.jetpack.data.CartLine
 import com.xixikitchen.jetpack.data.Category
+import com.xixikitchen.jetpack.data.CoupleSpace
 import com.xixikitchen.jetpack.data.Dish
+import com.xixikitchen.jetpack.data.InviteCodeCreateRequest
+import com.xixikitchen.jetpack.data.InviteCodeItem
 import com.xixikitchen.jetpack.data.KitchenRepository
 import com.xixikitchen.jetpack.data.Order
 import com.xixikitchen.jetpack.data.OrderCreateItem
@@ -41,12 +44,17 @@ data class KitchenUiState(
     val orderStatus: Int? = null,
     val selectedOrder: Order? = null,
     val announcements: List<Announcement> = emptyList(),
+    val coupleSpace: CoupleSpace? = null,
+    val allCoupleSpaces: List<CoupleSpace> = emptyList(),
+    val selectedCoupleId: Long? = null,
+    val inviteCodes: List<InviteCodeItem> = emptyList(),
     val adminUsers: List<User> = emptyList(),
     val adminOrders: List<Order> = emptyList(),
     val backendBaseUrl: String = BackendConfig.DEFAULT_BASE_URL
 ) {
     val loading: Boolean get() = activeRequests > 0
     val isLoggedIn: Boolean get() = session.loggedIn
+    val isSuperAdmin: Boolean get() = session.user?.role == "super_admin"
     val isAdmin: Boolean get() = session.user?.role == "admin" || session.user?.role == "super_admin"
     val token: String get() = session.token
     val user: User? get() = session.user
@@ -65,6 +73,12 @@ class KitchenViewModel @Inject constructor(
             repo.backendBaseUrl.collect { baseUrl ->
                 BackendConfig.setCurrentBaseUrl(baseUrl)
                 _state.update { it.copy(backendBaseUrl = baseUrl) }
+            }
+        }
+
+        viewModelScope.launch {
+            repo.selectedCoupleId.collect { selectedId ->
+                _state.update { it.copy(selectedCoupleId = selectedId) }
             }
         }
 
@@ -108,8 +122,6 @@ class KitchenViewModel @Inject constructor(
                 runCatching {
                     repo.login(trimmedUsername, trimmedPassword)
                 }.onSuccess {
-                    // 登录成功后不弹任何提示（页面切换本身就是反馈），
-                    // 并清掉可能残留的错误消息，进入主页保持干净
                     _state.update { it.copy(message = null, errorDialogMessage = null) }
                 }.onFailure { e ->
                     notifyError(resolveLoginErrorMessage(e))
@@ -120,20 +132,23 @@ class KitchenViewModel @Inject constructor(
         }
     }
 
-    fun register(username: String, password: String, onSuccess: () -> Unit = {}) {
+    fun register(username: String, password: String, inviteCode: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             _state.update { it.copy(activeRequests = it.activeRequests + 1, message = null, errorDialogMessage = null) }
             try {
                 val trimmedUsername = username.trim()
-                val trimmedPassword = password
-                if (trimmedUsername.isBlank() || trimmedPassword.isBlank()) {
+                val trimmedCode = inviteCode.trim()
+                if (trimmedUsername.isBlank() || password.isBlank()) {
                     notifyError("请输入账号和密码")
+                    return@launch
+                }
+                if (trimmedCode.isBlank()) {
+                    notifyError("请输入注册邀请码")
                     return@launch
                 }
 
                 runCatching {
-                    val session = repo.register(trimmedUsername, trimmedPassword)
-                    // 注册成功即已登录（后端返回 token），清理状态后进入主页
+                    val session = repo.register(trimmedUsername, password, trimmedCode)
                     _state.update {
                         it.copy(
                             session = session,
@@ -146,6 +161,10 @@ class KitchenViewModel @Inject constructor(
                             orders = emptyList(),
                             selectedOrder = null,
                             announcements = emptyList(),
+                            coupleSpace = null,
+                            allCoupleSpaces = emptyList(),
+                            selectedCoupleId = null,
+                            inviteCodes = emptyList(),
                             adminUsers = emptyList(),
                             adminOrders = emptyList()
                         )
@@ -173,8 +192,15 @@ class KitchenViewModel @Inject constructor(
     fun refreshHome() = runAction {
         coroutineScope {
             val cachedActive = _state.value.activeCategoryId
+            val isSuper = _state.value.isSuperAdmin
             val categoriesDeferred = async { repo.categories(token()) }
             val recipientsDeferred = async { repo.recipients(token()) }
+            val coupleSpaceDeferred = async { runCatching { repo.coupleSpace(token()) }.getOrNull() }
+            val allSpacesDeferred = if (isSuper) {
+                async<List<CoupleSpace>> { runCatching { repo.coupleSpaces(token()) }.getOrDefault(emptyList()) }
+            } else {
+                null
+            }
             val cachedDishesDeferred = cachedActive?.let { id ->
                 async { repo.dishes(token(), id) }
             }
@@ -188,11 +214,84 @@ class KitchenViewModel @Inject constructor(
                 active?.let { repo.dishes(token(), it) } ?: emptyList()
             }
             val recipients = recipientsDeferred.await()
+            val coupleSpace = coupleSpaceDeferred.await()
+            val allSpaces = allSpacesDeferred?.await() ?: _state.value.allCoupleSpaces
 
             _state.update {
-                it.copy(categories = categories, activeCategoryId = active, dishes = dishes, recipients = recipients)
+                it.copy(
+                    categories = categories,
+                    activeCategoryId = active,
+                    dishes = dishes,
+                    recipients = recipients,
+                    coupleSpace = coupleSpace ?: it.coupleSpace,
+                    allCoupleSpaces = allSpaces
+                )
             }
         }
+    }
+
+    fun refreshCoupleSpace() = runAction {
+        coroutineScope {
+            val spaceDeferred = async { repo.coupleSpace(token()) }
+            val recipientsDeferred = async { repo.recipients(token()) }
+            val allSpacesDeferred = if (_state.value.isSuperAdmin) {
+                async { repo.coupleSpaces(token()) }
+            } else {
+                null
+            }
+            val space = spaceDeferred.await()
+            val recipients = recipientsDeferred.await()
+            val allSpaces = allSpacesDeferred?.await() ?: _state.value.allCoupleSpaces
+            _state.update {
+                it.copy(
+                    coupleSpace = space,
+                    recipients = recipients,
+                    allCoupleSpaces = allSpaces
+                )
+            }
+        }
+    }
+
+    fun selectCoupleSpace(coupleId: Long) {
+        if (!_state.value.isSuperAdmin) return
+        if (_state.value.coupleSpace?.id == coupleId && _state.value.selectedCoupleId == coupleId) return
+        _state.update {
+            it.copy(
+                cart = emptyList(),
+                activeCategoryId = null,
+                searchKeyword = "",
+                searchResults = emptyList(),
+                selectedOrder = null
+            )
+        }
+        repo.selectCoupleSpace(coupleId)
+        refreshHome()
+        refreshOrders()
+        loadAdminData()
+    }
+
+    fun bindPartnerByCode(pairCode: String, onSuccess: () -> Unit = {}) = runAction {
+        val trimmed = pairCode.trim().uppercase()
+        if (trimmed.isBlank()) {
+            notifyError("请输入对方的配对码")
+            return@runAction
+        }
+        val mergedSpace = repo.pairByCode(token(), trimmed)
+        val current = _state.value.user
+        if (current != null) {
+            val updatedUser = current.copy(
+                partnerId = mergedSpace.partner?.id ?: current.partnerId,
+                coupleId = mergedSpace.id
+            )
+            repo.updateCachedUser(updatedUser)
+            _state.update { it.copy(session = it.session.copy(user = updatedUser)) }
+        }
+        _state.update { it.copy(coupleSpace = mergedSpace, activeCategoryId = null) }
+        repo.notifySpaceChanged()
+        refreshHome()
+        refreshOrders()
+        onSuccess()
+        notify("配对成功，已合并双方的厨房与纪念空间")
     }
 
     fun selectCategory(id: Long) {
@@ -315,9 +414,36 @@ class KitchenViewModel @Inject constructor(
     }
 
     fun loadAdminData() = runAction {
-        val users = repo.adminUsers(token())
-        val orders = repo.adminOrders(token()).list
-        _state.update { it.copy(adminUsers = users, adminOrders = orders) }
+        coroutineScope {
+            val isSuper = _state.value.isSuperAdmin
+            if (isSuper) {
+                val usersDeferred = async { repo.adminUsers(token()) }
+                val codesDeferred = async { repo.inviteCodes(token()) }
+                val spacesDeferred = async { repo.coupleSpaces(token()) }
+                val spaces = spacesDeferred.await()
+                val currentSelectedId = _state.value.selectedCoupleId
+                val resolvedSpace = if (currentSelectedId != null && spaces.none { it.id == currentSelectedId }) {
+                    val fallbackId = spaces.firstOrNull()?.id
+                    repo.selectCoupleSpace(fallbackId)
+                    runCatching { repo.coupleSpace(token()) }.getOrNull()
+                } else {
+                    _state.value.coupleSpace
+                }
+                val orders = repo.adminOrders(token()).list
+                _state.update {
+                    it.copy(
+                        adminUsers = usersDeferred.await(),
+                        adminOrders = orders,
+                        inviteCodes = codesDeferred.await(),
+                        allCoupleSpaces = spaces,
+                        coupleSpace = resolvedSpace
+                    )
+                }
+            } else {
+                val orders = repo.adminOrders(token()).list
+                _state.update { it.copy(adminOrders = orders) }
+            }
+        }
     }
 
     fun saveCategory(category: Category) = runAction {
@@ -384,6 +510,31 @@ class KitchenViewModel @Inject constructor(
         repo.deleteOrder(token(), id)
         loadAdminData()
         notify("订单已删除")
+    }
+
+    fun createInviteCode(code: String, note: String, maxUses: Int) = runAction {
+        repo.createInviteCode(
+            token(),
+            InviteCodeCreateRequest(
+                code = code.trim().takeIf { it.isNotEmpty() },
+                note = note.trim(),
+                maxUses = maxUses
+            )
+        )
+        loadAdminData()
+        notify("邀请码已生成")
+    }
+
+    fun toggleInviteCode(item: InviteCodeItem) = runAction {
+        repo.toggleInviteCode(token(), item.id, !item.enabled)
+        loadAdminData()
+        notify(if (!item.enabled) "邀请码已启用" else "邀请码已停用")
+    }
+
+    fun deleteInviteCode(id: Long) = runAction {
+        repo.deleteInviteCode(token(), id)
+        loadAdminData()
+        notify("邀请码已删除")
     }
 
     private fun runAction(block: suspend () -> Unit) {

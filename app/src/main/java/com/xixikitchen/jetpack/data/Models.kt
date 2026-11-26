@@ -8,7 +8,11 @@ data class ApiResponse<T>(
 
 data class LoginRequest(val username: String, val password: String)
 
-data class RegisterRequest(val username: String, val password: String)
+data class RegisterRequest(
+    val username: String,
+    val password: String,
+    val inviteCode: String
+)
 
 data class PasswordResetRequest(
     val resetKey: String,
@@ -28,8 +32,38 @@ data class User(
     val nickname: String? = null,
     val avatarUrl: String? = null,
     val role: String = "user",
-    val partnerId: Long? = null
+    val partnerId: Long? = null,
+    val coupleId: Long? = null
 )
+
+data class CoupleSpace(
+    val id: Long = 0,
+    val name: String = "",
+    val pairCode: String = "",
+    val paired: Boolean = false,
+    val partner: OrderUserInfo? = null,
+    val members: List<OrderUserInfo> = emptyList()
+)
+
+data class PairRequest(val pairCode: String)
+
+data class InviteCodeItem(
+    val id: Long = 0,
+    val code: String = "",
+    val note: String = "",
+    val maxUses: Int = 0,
+    val usedCount: Int = 0,
+    val enabled: Boolean = true,
+    val createdAt: String? = null
+)
+
+data class InviteCodeCreateRequest(
+    val code: String? = null,
+    val note: String? = null,
+    val maxUses: Int = 0
+)
+
+data class EnabledPayload(val enabled: Boolean)
 
 data class Category(
     val id: Long = 0,

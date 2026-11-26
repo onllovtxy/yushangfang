@@ -40,6 +40,7 @@ data class DiscoverUiState(
 ) {
     val loading: Boolean get() = activeRequests > 0
     val isAdmin: Boolean get() = currentUser?.role == "admin" || currentUser?.role == "super_admin"
+    val isSuperAdmin: Boolean get() = currentUser?.role == "super_admin"
 }
 
 @HiltViewModel
@@ -67,6 +68,27 @@ class DiscoverViewModel @Inject constructor(
             repo.sessionExpired.collect {
                 currentToken = ""
                 _state.value = DiscoverUiState()
+            }
+        }
+        viewModelScope.launch {
+            repo.spaceRefreshEvents.collect {
+                val hadNotes = _state.value.notesLoaded
+                val hadDiary = _state.value.diaryLoaded
+                _state.update {
+                    it.copy(
+                        notes = emptyList(),
+                        notesLoaded = false,
+                        anniversaries = emptyList(),
+                        diaryEntries = emptyList(),
+                        diaryTotal = 0,
+                        diaryPage = 1,
+                        diaryLoaded = false
+                    )
+                }
+                if (currentToken.isNotBlank()) {
+                    if (hadNotes) refreshNotesBoard()
+                    if (hadDiary) refreshDiary()
+                }
             }
         }
     }

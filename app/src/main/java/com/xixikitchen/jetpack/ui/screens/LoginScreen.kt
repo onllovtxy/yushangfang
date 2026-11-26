@@ -60,7 +60,7 @@ import com.xixikitchen.jetpack.ui.noRipplePressable
 fun LoginScreen(
     loading: Boolean,
     onLogin: (String, String) -> Unit,
-    onRegister: (String, String) -> Unit,
+    onRegister: (String, String, String) -> Unit,
     onResetPassword: (String, String, String) -> Unit
 ) {
     val tokens = LocalGlassTokens.current
@@ -206,8 +206,8 @@ fun LoginScreen(
             initialUsername = username,
             loading = loading,
             onDismiss = { showRegisterDialog = false },
-            onConfirm = { registerUsername, registerPassword ->
-                onRegister(registerUsername, registerPassword)
+            onConfirm = { registerUsername, registerPassword, inviteCode ->
+                onRegister(registerUsername, registerPassword, inviteCode)
                 showRegisterDialog = false
             }
         )
@@ -219,12 +219,13 @@ private fun RegisterDialog(
     initialUsername: String,
     loading: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String, String) -> Unit
+    onConfirm: (String, String, String) -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     var username by remember { mutableStateOf(initialUsername) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+    var inviteCode by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -256,9 +257,22 @@ private fun RegisterDialog(
                 GlassPasswordField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    label = "确认密码",
+                    label = "确认密码"
+                )
+                OutlinedTextField(
+                    value = inviteCode,
+                    onValueChange = { inviteCode = it.uppercase() },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("邀请码（向管理员获取）") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     isError = passwordError != null,
-                    supportingText = { passwordError?.let { Text(it, color = GlassAccent.error) } }
+                    supportingText = { passwordError?.let { Text(it, color = GlassAccent.error) } },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary,
+                        cursorColor = GlassAccent.primary
+                    )
                 )
             }
         },
@@ -266,6 +280,7 @@ private fun RegisterDialog(
             Button(
                 onClick = {
                     val u = username.trim()
+                    val code = inviteCode.trim()
                     if (u.length < 2) {
                         passwordError = "用户名至少2个字符"
                         return@Button
@@ -278,8 +293,12 @@ private fun RegisterDialog(
                         passwordError = "两次输入的密码不一致"
                         return@Button
                     }
+                    if (code.isEmpty()) {
+                        passwordError = "请输入邀请码"
+                        return@Button
+                    }
                     passwordError = null
-                    onConfirm(u, password)
+                    onConfirm(u, password, code)
                 },
                 enabled = !loading,
                 shape = RoundedCornerShape(16.dp),

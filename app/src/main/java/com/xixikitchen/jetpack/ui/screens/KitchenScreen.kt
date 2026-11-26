@@ -75,6 +75,7 @@ import com.xixikitchen.jetpack.data.Dish
 import com.xixikitchen.jetpack.ui.KitchenUiState
 import com.xixikitchen.jetpack.ui.KitchenViewModel
 import com.xixikitchen.jetpack.ui.components.DishThumbnail
+import com.xixikitchen.jetpack.ui.components.SuperAdminSpaceBanner
 import com.xixikitchen.jetpack.ui.components.realImageUrl
 import com.xixikitchen.jetpack.ui.components.rememberPullRefreshState
 import com.xixikitchen.jetpack.ui.designsystem.motion.AppDuration
@@ -212,6 +213,15 @@ fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                 .padding(padding)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                if (state.isSuperAdmin) {
+                    SuperAdminSpaceBanner(
+                        isSuperAdmin = true,
+                        currentSpace = state.coupleSpace,
+                        spaces = state.allCoupleSpaces,
+                        onSelectSpace = vm::selectCoupleSpace,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
 
                 var searchInput by remember { mutableStateOf(state.searchKeyword) }
@@ -561,58 +571,77 @@ private fun SubmitOrderDialog(
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                     color = tokens.textPrimary
                 )
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(vertical = 4.dp)
-                ) {
-                    items(state.recipients) { user ->
-                        val isSelected = selected == user.id
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .noRipplePressable(pressedScale = 0.95f) { selected = user.id }
-                                .then(
-                                    if (isSelected) Modifier.glassConvexOverlay(18.dp)
-                                    else Modifier.glassConcaveOverlay(18.dp)
-                                )
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
-                        ) {
-                            val avatarUrl = user.avatarUrl
-                            if (!avatarUrl.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = realImageUrl(avatarUrl),
-                                    contentDescription = "Avatar",
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(GlassAccent.primary.copy(alpha = 0.12f)),
-                                    contentScale = ContentScale.Crop
-                                )
+                if (state.recipients.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .glassConcaveOverlay(16.dp)
+                            .padding(14.dp)
+                    ) {
+                        Text(
+                            text = if (state.isSuperAdmin) {
+                                "当前情侣空间暂无可接单成员，请先到管理后台为该空间添加或配对成员。"
                             } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(GlassAccent.primary.copy(alpha = 0.12f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = GlassAccent.primary,
-                                        modifier = Modifier.size(14.dp)
+                                "你当前处于单人空间，请先去「我的」页面输入对方配对码绑定另一半后再下单。"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = GlassAccent.errorDeep
+                        )
+                    }
+                } else {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        items(state.recipients) { user ->
+                            val isSelected = selected == user.id
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .noRipplePressable(pressedScale = 0.95f) { selected = user.id }
+                                    .then(
+                                        if (isSelected) Modifier.glassConvexOverlay(18.dp)
+                                        else Modifier.glassConcaveOverlay(18.dp)
                                     )
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                val avatarUrl = user.avatarUrl
+                                if (!avatarUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = realImageUrl(avatarUrl),
+                                        contentDescription = "Avatar",
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(GlassAccent.primary.copy(alpha = 0.12f)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(GlassAccent.primary.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Person,
+                                            contentDescription = null,
+                                            tint = GlassAccent.primary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = user.nickname ?: "成员",
-                                color = if (isSelected) GlassAccent.primary else tokens.textPrimary,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = user.nickname ?: "成员",
+                                    color = if (isSelected) GlassAccent.primary else tokens.textPrimary,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }
@@ -644,6 +673,7 @@ private fun SubmitOrderDialog(
         confirmButton = {
             Button(
                 onClick = { onSubmit(remark, selected) },
+                enabled = selected != null && state.recipients.isNotEmpty(),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
             ) {

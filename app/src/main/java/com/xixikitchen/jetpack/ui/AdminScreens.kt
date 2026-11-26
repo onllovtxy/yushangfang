@@ -1,5 +1,9 @@
 package com.xixikitchen.jetpack.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -22,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -43,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -50,11 +56,13 @@ import androidx.navigation.NavHostController
 import com.xixikitchen.jetpack.data.Announcement
 import com.xixikitchen.jetpack.data.Category
 import com.xixikitchen.jetpack.data.Dish
+import com.xixikitchen.jetpack.data.InviteCodeItem
 import com.xixikitchen.jetpack.data.Order
 import com.xixikitchen.jetpack.data.User
 import com.xixikitchen.jetpack.data.UserEditorPayload
 import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
 import com.xixikitchen.jetpack.ui.components.DirectImageUploadField
+import com.xixikitchen.jetpack.ui.components.SuperAdminSpaceBanner
 import com.xixikitchen.jetpack.ui.components.SwipeRevealBox
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
 import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
@@ -65,9 +73,10 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
 private enum class AdminTab(val title: String, val caption: String) {
     Category("分类", "菜单结构"),
     Dish("菜品", "商品资料"),
+    Order("订单", "交易记录"),
     Announcement("公告", "内容发布"),
     User("用户", "账号权限"),
-    Order("订单", "交易记录")
+    InviteCode("邀请码", "注册通行证")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,7 +84,7 @@ private enum class AdminTab(val title: String, val caption: String) {
 fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostController) {
     val tokens = LocalGlassTokens.current
     var tab by remember { mutableStateOf(AdminTab.Category) }
-    val isSuperAdmin = state.user?.role == "super_admin"
+    val isSuperAdmin = state.isSuperAdmin
     val currentUserId = state.user?.id
     var categoryEditor by remember { mutableStateOf<Category?>(null) }
     var showNewCategory by remember { mutableStateOf(false) }
@@ -86,15 +95,18 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
     var userEditor by remember { mutableStateOf<User?>(null) }
     var showNewUser by remember { mutableStateOf(false) }
     var partnerEditor by remember { mutableStateOf<User?>(null) }
+    var showNewInviteCode by remember { mutableStateOf(false) }
     val visibleTabs = if (isSuperAdmin) {
         AdminTab.entries
     } else {
-        AdminTab.entries.filter { it != AdminTab.User }
+        listOf(AdminTab.Category, AdminTab.Dish, AdminTab.Order)
     }
 
     LaunchedEffect(Unit) {
         vm.refreshHome()
-        vm.refreshAnnouncements()
+        if (isSuperAdmin) {
+            vm.refreshAnnouncements()
+        }
         vm.loadAdminData()
     }
 
@@ -102,9 +114,10 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
         when (tab) {
             AdminTab.Category -> showNewCategory = true
             AdminTab.Dish -> showNewDish = true
+            AdminTab.Order -> vm.loadAdminData()
             AdminTab.Announcement -> showNewAnnouncement = true
             AdminTab.User -> showNewUser = true
-            AdminTab.Order -> vm.loadAdminData()
+            AdminTab.InviteCode -> showNewInviteCode = true
         }
     }
 
@@ -115,21 +128,48 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
                 onBack = { nav.popBackStack() }
             )
 
-            // 固定一行平分宽度、不横向滚动。
-            // 一共就 4~5 个 tab,却要左右滑动才能看到"订单" —— 这没有道理。
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                visibleTabs.forEach { item ->
-                    AdminModuleCard(
-                        tab = item,
-                        selected = tab == item,
-                        onClick = { tab = item },
-                        modifier = Modifier.weight(1f)
-                    )
+            if (isSuperAdmin) {
+                SuperAdminSpaceBanner(
+                    isSuperAdmin = true,
+                    currentSpace = state.coupleSpace,
+                    spaces = state.allCoupleSpaces,
+                    onSelectSpace = vm::selectCoupleSpace,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
+            if (visibleTabs.size <= 4) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    visibleTabs.forEach { item ->
+                        AdminModuleCard(
+                            tab = item,
+                            selected = tab == item,
+                            onClick = { tab = item },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            } else {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(visibleTabs) { item ->
+                        AdminModuleCard(
+                            tab = item,
+                            selected = tab == item,
+                            onClick = { tab = item },
+                            modifier = Modifier.width(84.dp)
+                        )
+                    }
                 }
             }
 
@@ -167,28 +207,33 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
                     }
                     Spacer(Modifier.height(14.dp))
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                when (tab) {
-                    AdminTab.Category -> CategoryAdminList(state.categories, onEdit = { categoryEditor = it }, onDelete = vm::deleteCategory)
-                    AdminTab.Dish -> DishAdminList(
-                        categories = state.categories,
-                        activeCategoryId = state.activeCategoryId,
-                        onSelectCategory = vm::selectCategory,
-                        items = state.dishes,
-                        onEdit = { dishEditor = it },
-                        onDelete = vm::deleteDish
-                    )
-                    AdminTab.Announcement -> AnnouncementAdminList(state.announcements, onEdit = { announcementEditor = it }, onDelete = vm::deleteAnnouncement)
-                    AdminTab.User -> UserAdminList(
-                        users = state.adminUsers,
-                        currentUserId = currentUserId,
-                        isSuperAdmin = isSuperAdmin,
-                        onEdit = { userEditor = it },
-                        onDelete = vm::deleteUser,
-                        onToggleRole = vm::toggleRole,
-                        onPartner = { partnerEditor = it }
-                    )
-                    AdminTab.Order -> OrderAdminList(state.adminOrders, onDelete = vm::deleteAdminOrder)
-                }
+                        when (tab) {
+                            AdminTab.Category -> CategoryAdminList(state.categories, onEdit = { categoryEditor = it }, onDelete = vm::deleteCategory)
+                            AdminTab.Dish -> DishAdminList(
+                                categories = state.categories,
+                                activeCategoryId = state.activeCategoryId,
+                                onSelectCategory = vm::selectCategory,
+                                items = state.dishes,
+                                onEdit = { dishEditor = it },
+                                onDelete = vm::deleteDish
+                            )
+                            AdminTab.Order -> OrderAdminList(state.adminOrders, onDelete = vm::deleteAdminOrder)
+                            AdminTab.Announcement -> AnnouncementAdminList(state.announcements, onEdit = { announcementEditor = it }, onDelete = vm::deleteAnnouncement)
+                            AdminTab.User -> UserAdminList(
+                                users = state.adminUsers,
+                                currentUserId = currentUserId,
+                                isSuperAdmin = isSuperAdmin,
+                                onEdit = { userEditor = it },
+                                onDelete = vm::deleteUser,
+                                onToggleRole = vm::toggleRole,
+                                onPartner = { partnerEditor = it }
+                            )
+                            AdminTab.InviteCode -> InviteCodeAdminList(
+                                items = state.inviteCodes,
+                                onToggle = vm::toggleInviteCode,
+                                onDelete = vm::deleteInviteCode
+                            )
+                        }
                     }
                 }
             }
@@ -229,6 +274,15 @@ fun AdminScreen(state: KitchenUiState, vm: KitchenViewModel, nav: NavHostControl
             partnerEditor = null
         })
     }
+    if (showNewInviteCode) {
+        InviteCodeEditorDialog(
+            onDismiss = { showNewInviteCode = false },
+            onSave = { code, note, maxUses ->
+                vm.createInviteCode(code, note, maxUses)
+                showNewInviteCode = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -258,7 +312,7 @@ private fun AdminConsoleHeader(
                 }
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "后台管理",
+                    text = if (isSuperAdmin) "超管控制台" else "厨房管理",
                     color = tokens.textPrimary,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
                 )
@@ -270,7 +324,7 @@ private fun AdminConsoleHeader(
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
                 Text(
-                    text = if (isSuperAdmin) "超级管理员" else "管理员",
+                    text = if (isSuperAdmin) "超级管理员" else "本空间共管",
                     color = GlassAccent.primary,
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                 )
@@ -451,7 +505,7 @@ private fun UserAdminList(
                                     Modifier.noRippleCombinedPressable(
                                         pressedScale = 0.985f,
                                         onLongClick = { onEdit(user) },
-                                        onClick = {}
+                                        onClick = { onPartner(user) }
                                     )
                                 } else {
                                     Modifier
@@ -460,18 +514,39 @@ private fun UserAdminList(
                             .glassConvex(20.dp)
                             .padding(16.dp)
                     ) {
-                        Column(Modifier.fillMaxWidth()) {
-                            Text(
-                                user.nickname ?: "未命名用户",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = tokens.textPrimary
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                "账号: ${user.username ?: "无"}  ·  角色: ${user.role}  ·  接单人: ${users.firstOrNull { it.id == user.partnerId }?.nickname ?: "未设置"}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = tokens.textSecondary
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    user.nickname ?: "未命名用户",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = tokens.textPrimary
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    "角色: ${user.role}  ·  空间 #${user.coupleId ?: "-"}  ·  伴侣: ${users.firstOrNull { it.id == user.partnerId }?.nickname ?: "未配对"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = tokens.textSecondary
+                                )
+                            }
+                            if (isNewlyAddedUser) {
+                                Spacer(Modifier.width(10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .noRipplePressable(pressedScale = 0.94f) { onPartner(user) }
+                                        .background(GlassAccent.washStrong, RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "配对",
+                                        color = GlassAccent.primaryDark,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -969,6 +1044,174 @@ private fun PartnerDialog(user: User, users: List<User>, onDismiss: () -> Unit, 
                 colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
             ) {
                 Text("保存", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = tokens.textSecondary)
+            }
+        }
+    )
+}
+
+@Composable
+private fun InviteCodeAdminList(
+    items: List<InviteCodeItem>,
+    onToggle: (InviteCodeItem) -> Unit,
+    onDelete: (Long) -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    val context = LocalContext.current
+    if (items.isEmpty()) {
+        AdminEmptyState("暂无邀请码")
+        return
+    }
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(items, key = { it.id }) { item ->
+            var showDeleteConfirm by remember { mutableStateOf(false) }
+            val usageLabel = if (item.maxUses <= 0) "已用 ${item.usedCount} 次 / 不限" else "已用 ${item.usedCount}/${item.maxUses} 次"
+
+            SwipeRevealBox(
+                swipeEnabled = true,
+                onDeleteClick = { showDeleteConfirm = true }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .noRipplePressable(pressedScale = 0.985f) {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                            clipboard?.setPrimaryClip(ClipData.newPlainText("注册邀请码", item.code))
+                            Toast.makeText(context, "已复制邀请码: ${item.code}", Toast.LENGTH_SHORT).show()
+                        }
+                        .glassConvex(20.dp)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = item.code,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                color = GlassAccent.primaryDark
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "复制",
+                                tint = GlassAccent.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Text(
+                            text = "${item.note.ifBlank { "无备注" }} · $usageLabel",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = tokens.textSecondary
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .noRipplePressable(pressedScale = 0.94f) { onToggle(item) }
+                            .background(
+                                if (item.enabled) GlassAccent.washStrong else Color.Gray.copy(alpha = 0.16f),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = if (item.enabled) "已启用" else "已停用",
+                            color = if (item.enabled) GlassAccent.primaryDark else tokens.textSecondary,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            }
+
+            if (showDeleteConfirm) {
+                ConfirmDeleteDialog(
+                    message = "确定要删除邀请码 \"${item.code}\" 吗？",
+                    onConfirm = {
+                        showDeleteConfirm = false
+                        onDelete(item.id)
+                    },
+                    onDismiss = { showDeleteConfirm = false }
+                )
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun InviteCodeEditorDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, String, Int) -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    var code by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    var maxUses by remember { mutableStateOf("0") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
+        title = {
+            Text(
+                "新增注册邀请码",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                color = GlassAccent.primaryDark
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it.uppercase().take(32) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("邀请码（留空自动生成8位）") },
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
+                    )
+                )
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it.take(100) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("备注（如：发给朋友小王）") },
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
+                    )
+                )
+                OutlinedTextField(
+                    value = maxUses,
+                    onValueChange = { maxUses = it.filter { ch -> ch.isDigit() }.take(5) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("最大可用次数（0 表示不限）") },
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GlassAccent.primary,
+                        focusedLabelColor = GlassAccent.primary
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(code, note, maxUses.toIntOrNull() ?: 0) },
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+            ) {
+                Text("生成", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
