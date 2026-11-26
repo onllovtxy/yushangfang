@@ -106,6 +106,32 @@ interface ApiService {
     @DELETE("/api/announcement/delete/{id}")
     suspend fun deleteAnnouncement(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
 
+    @GET("/api/note/list")
+    suspend fun notes(@Header("Authorization") token: String): ApiResponse<List<CoupleNote>>
+
+    @POST("/api/note/add")
+    suspend fun addNote(
+        @Header("Authorization") token: String,
+        @Body body: CoupleNoteSaveRequest
+    ): ApiResponse<CoupleNote>
+
+    @PUT("/api/note/update/{id}")
+    suspend fun updateNote(
+        @Header("Authorization") token: String,
+        @Path("id") id: Long,
+        @Body body: CoupleNoteSaveRequest
+    ): ApiResponse<CoupleNote>
+
+    @PUT("/api/note/pin/{id}")
+    suspend fun pinNote(
+        @Header("Authorization") token: String,
+        @Path("id") id: Long,
+        @Body body: PinPayload
+    ): ApiResponse<String>
+
+    @DELETE("/api/note/delete/{id}")
+    suspend fun deleteNote(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
+
     @GET("/api/anniversary/list")
     suspend fun anniversaries(@Header("Authorization") token: String): ApiResponse<List<Anniversary>>
 

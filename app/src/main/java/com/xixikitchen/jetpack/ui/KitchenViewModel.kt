@@ -347,13 +347,13 @@ class KitchenViewModel @Inject constructor(
     fun saveAnnouncement(id: Long?, content: String) = runAction {
         if (id == null || id == 0L) repo.addAnnouncement(token(), content) else repo.updateAnnouncement(token(), id, content)
         refreshAnnouncements()
-        notify("小纸条已保存")
+        notify("公告已保存")
     }
 
     fun deleteAnnouncement(id: Long) = runAction {
         repo.deleteAnnouncement(token(), id)
         refreshAnnouncements()
-        notify("小纸条已删除")
+        notify("公告已删除")
     }
 
     fun saveUser(id: Long?, payload: UserEditorPayload) = runAction {

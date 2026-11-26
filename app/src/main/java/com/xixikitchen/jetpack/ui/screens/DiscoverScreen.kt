@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -61,7 +60,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.xixikitchen.jetpack.data.Anniversary
 import com.xixikitchen.jetpack.data.AnniversarySaveRequest
-import com.xixikitchen.jetpack.data.Announcement
+import com.xixikitchen.jetpack.data.CoupleNote
 import com.xixikitchen.jetpack.data.OrderCheckIn
 import com.xixikitchen.jetpack.ui.DiscoverUiState
 import com.xixikitchen.jetpack.ui.DiscoverViewModel
@@ -87,6 +86,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 private enum class DiscoverSubTab(val label: String) {
+    Announcements("公告栏"),
     Notes("小纸条"),
     Diary("美食日记")
 }
@@ -100,14 +100,13 @@ fun DiscoverScreen(
     onGoOrders: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
-    var subTab by rememberSaveable { mutableStateOf(DiscoverSubTab.Notes) }
+    var subTab by rememberSaveable { mutableStateOf(DiscoverSubTab.Announcements) }
     val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
 
-    // Dialog states
     var showCreateNote by remember { mutableStateOf(false) }
-    var editingNote by remember { mutableStateOf<Announcement?>(null) }
-    var noteActionTarget by remember { mutableStateOf<Announcement?>(null) }
-    var deleteNoteTarget by remember { mutableStateOf<Announcement?>(null) }
+    var editingNote by remember { mutableStateOf<CoupleNote?>(null) }
+    var noteActionTarget by remember { mutableStateOf<CoupleNote?>(null) }
+    var deleteNoteTarget by remember { mutableStateOf<CoupleNote?>(null) }
 
     var showCreateAnniversary by remember { mutableStateOf(false) }
     var editingAnniversary by remember { mutableStateOf<Anniversary?>(null) }
@@ -119,10 +118,11 @@ fun DiscoverScreen(
     var deleteCheckInTarget by remember { mutableStateOf<OrderCheckIn?>(null) }
     var lightboxCheckIn by remember { mutableStateOf<OrderCheckIn?>(null) }
 
-    LaunchedEffect(Unit) { vm.refreshNotesBoard() }
     LaunchedEffect(subTab) {
-        if (subTab == DiscoverSubTab.Diary && !state.diaryLoaded) {
-            vm.refreshDiary()
+        when (subTab) {
+            DiscoverSubTab.Announcements -> if (!state.announcementsLoaded) vm.refreshAnnouncements()
+            DiscoverSubTab.Notes -> if (!state.notesLoaded) vm.refreshNotesBoard()
+            DiscoverSubTab.Diary -> if (!state.diaryLoaded) vm.refreshDiary()
         }
     }
 
@@ -134,7 +134,11 @@ fun DiscoverScreen(
             isRefreshing = isPullRefreshing,
             onRefresh = {
                 startPullRefresh()
-                if (subTab == DiscoverSubTab.Notes) vm.refreshNotesBoard() else vm.refreshDiary()
+                when (subTab) {
+                    DiscoverSubTab.Announcements -> vm.refreshAnnouncements()
+                    DiscoverSubTab.Notes -> vm.refreshNotesBoard()
+                    DiscoverSubTab.Diary -> vm.refreshDiary()
+                }
             },
             modifier = Modifier
                 .padding(padding)
@@ -146,7 +150,7 @@ fun DiscoverScreen(
                     .padding(horizontal = 16.dp)
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 12.dp)
@@ -162,10 +166,13 @@ fun DiscoverScreen(
                 }
 
                 when (subTab) {
+                    DiscoverSubTab.Announcements -> AnnouncementsContent(state = state)
+
                     DiscoverSubTab.Notes -> NotesBoardContent(
                         state = state,
                         onAddAnniversary = { showCreateAnniversary = true },
                         onAnniversaryClick = { anniversaryActionTarget = it },
+                        onAnniversaryDeleteRequest = { deleteAnniversaryTarget = it },
                         onAddNote = { showCreateNote = true },
                         onNoteLongClick = { noteActionTarget = it },
                         onNoteDeleteRequest = { deleteNoteTarget = it }
@@ -201,7 +208,7 @@ fun DiscoverScreen(
     }
 
     noteActionTarget?.let { target ->
-        val canManage = state.isAdmin || (target.createdBy ?: target.updatedBy) == state.currentUser?.id
+        val canManage = state.isAdmin || target.createdBy == state.currentUser?.id
         AlertDialog(
             onDismissRequest = { noteActionTarget = null },
             modifier = Modifier.glassConvexOverlay(24.dp),
@@ -486,13 +493,113 @@ fun DiscoverScreen(
 }
 
 @Composable
+private fun AnnouncementsContent(state: DiscoverUiState) {
+    val tokens = LocalGlassTokens.current
+    if (state.announcements.isEmpty() && !state.loading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 24.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glassConcave(20.dp)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "暂无公告",
+                    color = tokens.textSecondary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(state.announcements, key = { "ann_${it.id}" }) { ann ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (ann.pinned) {
+                            Modifier.border(BorderStroke(1.dp, GlassAccent.edge), RoundedCornerShape(20.dp))
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .glassConvex(20.dp)
+                    .padding(16.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .glassConcave(12.dp)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "公告",
+                                    color = GlassAccent.primary,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                            if (ann.pinned) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(GlassAccent.wash, RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = "置顶",
+                                        color = GlassAccent.primary,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = (ann.updatedAt ?: ann.createdAt)?.take(10).orEmpty(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tokens.textSecondary
+                        )
+                    }
+                    Text(
+                        text = ann.content,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                        color = tokens.textPrimary,
+                        lineHeight = 22.sp
+                    )
+                }
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
 private fun NotesBoardContent(
     state: DiscoverUiState,
     onAddAnniversary: () -> Unit,
     onAnniversaryClick: (Anniversary) -> Unit,
+    onAnniversaryDeleteRequest: (Anniversary) -> Unit,
     onAddNote: () -> Unit,
-    onNoteLongClick: (Announcement) -> Unit,
-    onNoteDeleteRequest: (Announcement) -> Unit
+    onNoteLongClick: (CoupleNote) -> Unit,
+    onNoteDeleteRequest: (CoupleNote) -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     LazyColumn(
@@ -507,8 +614,8 @@ private fun NotesBoardContent(
             )
         }
 
-        item {
-            if (state.anniversaries.isEmpty()) {
+        if (state.anniversaries.isEmpty()) {
+            item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -532,18 +639,17 @@ private fun NotesBoardContent(
                         )
                     }
                 }
-            } else {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(vertical = 2.dp),
-                    modifier = Modifier.fillMaxWidth()
+            }
+        } else {
+            items(state.anniversaries, key = { "anniv_${it.id}" }) { item ->
+                SwipeRevealBox(
+                    swipeEnabled = true,
+                    onDeleteClick = { onAnniversaryDeleteRequest(item) }
                 ) {
-                    items(state.anniversaries, key = { it.id }) { item ->
-                        AnniversaryCard(
-                            item = item,
-                            onClick = { onAnniversaryClick(item) }
-                        )
-                    }
+                    AnniversaryCard(
+                        item = item,
+                        onClick = { onAnniversaryClick(item) }
+                    )
                 }
             }
         }
@@ -551,7 +657,7 @@ private fun NotesBoardContent(
         item {
             Spacer(Modifier.height(4.dp))
             SectionActionHeader(
-                title = "冰箱贴",
+                title = "小纸条",
                 actionLabel = "写纸条",
                 onAction = onAddNote
             )
@@ -575,8 +681,8 @@ private fun NotesBoardContent(
                 }
             }
         } else {
-            items(state.notes, key = { it.id }) { note ->
-                val canManage = state.isAdmin || (note.createdBy ?: note.updatedBy) == state.currentUser?.id
+            items(state.notes, key = { "note_${it.id}" }) { note ->
+                val canManage = state.isAdmin || note.createdBy == state.currentUser?.id
                 SwipeRevealBox(
                     swipeEnabled = canManage,
                     onDeleteClick = { onNoteDeleteRequest(note) }
@@ -650,12 +756,11 @@ private fun AnniversaryCard(
         item.isPast -> "已过去"
         else -> "倒计时"
     }
-    val bigNumberText = when {
-        item.isToday -> "今天 🎉"
-        item.type == "countup" && item.isPast -> "还有 ${item.daysCount} 天"
-        item.type == "countup" -> "${item.daysCount} 天"
-        item.isPast -> "已过 ${item.daysCount} 天"
-        else -> "还有 ${item.daysCount} 天"
+    val dayPrefix = when {
+        item.type == "countup" && item.isPast -> "还有"
+        item.type == "countup" -> "已经"
+        item.isPast -> "已过"
+        else -> "还有"
     }
     val footerText = when {
         item.nextAnniversaryDays == 0L -> "${item.eventDate} · 周年纪念 🎉"
@@ -666,9 +771,9 @@ private fun AnniversaryCard(
 
     Box(
         modifier = Modifier
-            .width(178.dp)
+            .fillMaxWidth()
             .noRippleCombinedPressable(
-                pressedScale = 0.97f,
+                pressedScale = 0.985f,
                 onLongClick = onClick,
                 onClick = onClick
             )
@@ -680,70 +785,102 @@ private fun AnniversaryCard(
                 }
             )
             .glassConvex(20.dp)
-            .padding(14.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (item.pinned) {
                         Icon(
                             imageVector = Icons.Default.PushPin,
                             contentDescription = "已置顶",
                             tint = GlassAccent.primary,
-                            modifier = Modifier.size(13.dp)
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(Modifier.width(4.dp))
                     }
                     Text(
                         text = item.title,
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
                         color = tokens.textPrimary,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
+                    Box(
+                        modifier = Modifier
+                            .background(GlassAccent.wash, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            color = GlassAccent.primary,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
                 }
-                Spacer(Modifier.width(6.dp))
-                Box(
-                    modifier = Modifier
-                        .background(GlassAccent.wash, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 7.dp, vertical = 2.dp)
-                ) {
+
+                Text(
+                    text = footerText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = tokens.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            if (item.isToday) {
+                Text(
+                    text = "今天 🎉",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    ),
+                    color = GlassAccent.primaryDark,
+                    maxLines = 1
+                )
+            } else {
+                Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = badgeText,
+                        text = dayPrefix,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = tokens.textSecondary,
+                        modifier = Modifier.padding(bottom = 4.dp, end = 4.dp)
+                    )
+                    Text(
+                        text = "${item.daysCount}",
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        ),
                         color = GlassAccent.primary,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "天",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = GlassAccent.primary,
+                        modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
                     )
                 }
             }
-
-            Text(
-                text = bigNumberText,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                color = if (item.isToday) GlassAccent.primaryDark else GlassAccent.primary,
-                maxLines = 1
-            )
-
-            Text(
-                text = footerText,
-                style = MaterialTheme.typography.labelSmall,
-                color = tokens.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
     }
 }
 
 @Composable
 private fun FridgeNoteCard(
-    note: Announcement,
+    note: CoupleNote,
     onLongClick: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
@@ -868,7 +1005,7 @@ private fun DiaryContent(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        items(state.diaryEntries, key = { it.id }) { entry ->
+        items(state.diaryEntries, key = { "diary_${it.id}" }) { entry ->
             val canManage = state.isAdmin || entry.userId == currentUserId
             DiaryTimelineItem(
                 entry = entry,
@@ -1044,7 +1181,7 @@ private fun DiaryTimelineItem(
 
 @Composable
 private fun NoteEditorDialog(
-    initial: Announcement?,
+    initial: CoupleNote?,
     onDismiss: () -> Unit,
     onSave: (String, Boolean) -> Unit
 ) {

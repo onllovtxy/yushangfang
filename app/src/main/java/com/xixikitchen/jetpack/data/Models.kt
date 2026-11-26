@@ -59,6 +59,23 @@ data class Announcement(
     val updatedAt: String? = null
 )
 
+data class CoupleNote(
+    val id: Long = 0,
+    val content: String = "",
+    val pinned: Boolean = false,
+    val pinnedAt: String? = null,
+    val createdBy: Long? = null,
+    val authorName: String? = null,
+    val authorAvatar: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+
+data class CoupleNoteSaveRequest(
+    val content: String,
+    val pinned: Boolean
+)
+
 data class PinPayload(val pinned: Boolean)
 
 data class Anniversary(

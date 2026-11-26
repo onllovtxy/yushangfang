@@ -7,6 +7,8 @@ import com.xixikitchen.jetpack.data.AnniversarySaveRequest
 import com.xixikitchen.jetpack.data.Announcement
 import com.xixikitchen.jetpack.data.CheckInCreateRequest
 import com.xixikitchen.jetpack.data.CheckInUpdateRequest
+import com.xixikitchen.jetpack.data.CoupleNote
+import com.xixikitchen.jetpack.data.CoupleNoteSaveRequest
 import com.xixikitchen.jetpack.data.KitchenRepository
 import com.xixikitchen.jetpack.data.OrderCheckIn
 import com.xixikitchen.jetpack.data.User
@@ -24,7 +26,10 @@ data class DiscoverUiState(
     val activeRequests: Int = 0,
     val message: String? = null,
     val errorDialogMessage: String? = null,
-    val notes: List<Announcement> = emptyList(),
+    val announcements: List<Announcement> = emptyList(),
+    val announcementsLoaded: Boolean = false,
+    val notes: List<CoupleNote> = emptyList(),
+    val notesLoaded: Boolean = false,
     val anniversaries: List<Anniversary> = emptyList(),
     val diaryEntries: List<OrderCheckIn> = emptyList(),
     val diaryTotal: Long = 0,
@@ -70,34 +75,34 @@ class DiscoverViewModel @Inject constructor(
     fun consumeMessage() = _state.update { it.copy(message = null) }
     fun consumeErrorDialog() = _state.update { it.copy(errorDialogMessage = null) }
 
+    fun refreshAnnouncements() = runAction {
+        val list = repo.announcements(token())
+        _state.update { it.copy(announcements = list, announcementsLoaded = true) }
+    }
+
     fun refreshNotesBoard() = runAction {
-        coroutineScope {
-            val notesDeferred = async { repo.announcements(token()) }
-            val annivDeferred = async { repo.anniversaries(token()) }
-            val notes = notesDeferred.await()
-            val anniversaries = annivDeferred.await()
-            _state.update { it.copy(notes = notes, anniversaries = anniversaries) }
-        }
+        refreshNotesBoardSync()
     }
 
     fun saveNote(id: Long?, content: String, pinned: Boolean) = runAction {
+        val req = CoupleNoteSaveRequest(content = content, pinned = pinned)
         if (id == null || id == 0L) {
-            repo.addAnnouncement(token(), content, pinned)
+            repo.addNote(token(), req)
         } else {
-            repo.updateAnnouncement(token(), id, content, pinned)
+            repo.updateNote(token(), id, req)
         }
         refreshNotesBoardSync()
         notify("小纸条已保存")
     }
 
-    fun togglePinNote(note: Announcement) = runAction {
-        repo.pinAnnouncement(token(), note.id, !note.pinned)
+    fun togglePinNote(note: CoupleNote) = runAction {
+        repo.pinNote(token(), note.id, !note.pinned)
         refreshNotesBoardSync()
         notify(if (!note.pinned) "已置顶" else "已取消置顶")
     }
 
     fun deleteNote(id: Long) = runAction {
-        repo.deleteAnnouncement(token(), id)
+        repo.deleteNote(token(), id)
         refreshNotesBoardSync()
         notify("小纸条已删除")
     }
@@ -109,7 +114,7 @@ class DiscoverViewModel @Inject constructor(
             repo.updateAnniversary(token(), id, req)
         }
         val list = repo.anniversaries(token())
-        _state.update { it.copy(anniversaries = list) }
+        _state.update { it.copy(anniversaries = list, notesLoaded = true) }
         notify("纪念日已保存")
     }
 
@@ -194,7 +199,7 @@ class DiscoverViewModel @Inject constructor(
     }
 
     fun updateCheckIn(checkIn: OrderCheckIn, imageUrl: String, note: String) = runAction {
-        val updated = repo.updateCheckIn(checkIn.id, imageUrl, note)
+        val updated = repo.updateCheckIn(token(), checkIn.id, CheckInUpdateRequest(imageUrl = imageUrl, note = note))
         _state.update { current ->
             val orderList = current.orderCheckIns[checkIn.orderId]?.map {
                 if (it.id == updated.id) updated else it
@@ -248,16 +253,12 @@ class DiscoverViewModel @Inject constructor(
 
     private suspend fun refreshNotesBoardSync() {
         coroutineScope {
-            val notesDeferred = async { repo.announcements(token()) }
+            val notesDeferred = async { repo.notes(token()) }
             val annivDeferred = async { repo.anniversaries(token()) }
             val notes = notesDeferred.await()
             val anniversaries = annivDeferred.await()
-            _state.update { it.copy(notes = notes, anniversaries = anniversaries) }
+            _state.update { it.copy(notes = notes, anniversaries = anniversaries, notesLoaded = true) }
         }
-    }
-
-    private suspend fun KitchenRepository.updateCheckIn(id: Long, imageUrl: String, note: String): OrderCheckIn {
-        return updateCheckIn(token(), id, CheckInUpdateRequest(imageUrl = imageUrl, note = note))
     }
 
     private fun runAction(block: suspend () -> Unit) {

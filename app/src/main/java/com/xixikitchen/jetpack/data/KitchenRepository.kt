@@ -78,6 +78,14 @@ class KitchenRepository @Inject constructor(
         api().pinAnnouncement(auth(token), id, PinPayload(pinned)).unwrap()
     suspend fun deleteAnnouncement(token: String, id: Long) = api().deleteAnnouncement(auth(token), id).unwrap()
 
+    suspend fun notes(token: String) = api().notes(auth(token)).unwrap()
+    suspend fun addNote(token: String, req: CoupleNoteSaveRequest) = api().addNote(auth(token), req).unwrap()
+    suspend fun updateNote(token: String, id: Long, req: CoupleNoteSaveRequest) =
+        api().updateNote(auth(token), id, req).unwrap()
+    suspend fun pinNote(token: String, id: Long, pinned: Boolean) =
+        api().pinNote(auth(token), id, PinPayload(pinned)).unwrap()
+    suspend fun deleteNote(token: String, id: Long) = api().deleteNote(auth(token), id).unwrap()
+
     suspend fun anniversaries(token: String) = api().anniversaries(auth(token)).unwrap()
     suspend fun addAnniversary(token: String, req: AnniversarySaveRequest) =
         api().addAnniversary(auth(token), req).unwrap()
