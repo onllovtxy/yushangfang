@@ -95,16 +95,18 @@ class KitchenRepository @Inject constructor(
         api().pinAnniversary(auth(token), id, PinPayload(pinned)).unwrap()
     suspend fun deleteAnniversary(token: String, id: Long) = api().deleteAnniversary(auth(token), id).unwrap()
 
-    suspend fun checkIns(token: String, page: Int = 1, pageSize: Int = 20) =
-        api().checkIns(auth(token), page, pageSize).unwrap()
-    suspend fun orderCheckIns(token: String, orderId: Long) =
-        api().orderCheckIns(auth(token), orderId).unwrap()
-    suspend fun addCheckIn(token: String, req: CheckInCreateRequest) =
-        api().addCheckIn(auth(token), req).unwrap()
-    suspend fun updateCheckIn(token: String, id: Long, req: CheckInUpdateRequest) =
-        api().updateCheckIn(auth(token), id, req).unwrap()
-    suspend fun deleteCheckIn(token: String, id: Long) =
-        api().deleteCheckIn(auth(token), id).unwrap()
+    suspend fun diaries(token: String, page: Int = 1, pageSize: Int = 20) =
+        api().diaries(auth(token), page, pageSize).unwrap()
+    suspend fun createDiary(token: String, req: FoodDiarySaveRequest) =
+        api().createDiary(auth(token), req).unwrap()
+    suspend fun updateDiary(token: String, id: Long, req: FoodDiarySaveRequest) =
+        api().updateDiary(auth(token), id, req).unwrap()
+    suspend fun deleteDiary(token: String, id: Long) =
+        api().deleteDiary(auth(token), id).unwrap()
+    suspend fun addDiaryComment(token: String, diaryId: Long, req: FoodDiaryCommentCreateRequest) =
+        api().addDiaryComment(auth(token), diaryId, req).unwrap()
+    suspend fun deleteDiaryComment(token: String, commentId: Long) =
+        api().deleteDiaryComment(auth(token), commentId).unwrap()
 
     suspend fun uploadImageBytes(token: String, bytes: ByteArray, fileName: String): String {
         val lowerName = fileName.lowercase()

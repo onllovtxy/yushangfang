@@ -103,37 +103,54 @@ data class AnniversarySaveRequest(
     val note: String
 )
 
-data class OrderCheckIn(
+data class FoodDiaryComment(
     val id: Long = 0,
-    val orderId: Long = 0,
-    val orderNo: String? = null,
+    val diaryId: Long = 0,
     val userId: Long = 0,
     val authorName: String? = null,
     val authorAvatar: String? = null,
-    val roleTag: String = "chef",
+    val replyToUserId: Long? = null,
+    val replyToName: String? = null,
+    val content: String = "",
+    val createdAt: String? = null
+)
+
+data class FoodDiary(
+    val id: Long = 0,
+    val userId: Long = 0,
+    val authorName: String? = null,
+    val authorAvatar: String? = null,
     val imageUrl: String = "",
-    val note: String = "",
-    val dishNames: List<String> = emptyList(),
-    val chefName: String? = null,
-    val dinerName: String? = null,
+    val templateCode: String = "boarding_pass",
+    val aspectRatio: String = "4:3",
+    val title: String = "今日份美味",
+    val content: String = "",
+    val location: String = "熙熙的小厨房",
+    val moodTag: String = "超满足",
+    val ticketNo: String = "",
+    val comments: List<FoodDiaryComment> = emptyList(),
     val createdAt: String? = null,
     val updatedAt: String? = null
 )
 
-data class CheckInPage(
+data class FoodDiaryPage(
     val total: Long = 0,
-    val list: List<OrderCheckIn> = emptyList()
+    val list: List<FoodDiary> = emptyList()
 )
 
-data class CheckInCreateRequest(
-    val orderId: Long,
+data class FoodDiarySaveRequest(
     val imageUrl: String,
-    val note: String
+    val templateCode: String,
+    val aspectRatio: String,
+    val title: String,
+    val content: String,
+    val location: String,
+    val moodTag: String
 )
 
-data class CheckInUpdateRequest(
-    val imageUrl: String? = null,
-    val note: String? = null
+data class FoodDiaryCommentCreateRequest(
+    val content: String,
+    val replyToUserId: Long? = null
 )
 
 data class OrderCreateRequest(

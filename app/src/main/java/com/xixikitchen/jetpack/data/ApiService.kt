@@ -158,34 +158,41 @@ interface ApiService {
     @DELETE("/api/anniversary/delete/{id}")
     suspend fun deleteAnniversary(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
 
-    @GET("/api/checkin/list")
-    suspend fun checkIns(
+    @GET("/api/diary/list")
+    suspend fun diaries(
         @Header("Authorization") token: String,
         @Query("page") page: Int = 1,
         @Query("pageSize") pageSize: Int = 20
-    ): ApiResponse<CheckInPage>
+    ): ApiResponse<FoodDiaryPage>
 
-    @GET("/api/checkin/order/{orderId}")
-    suspend fun orderCheckIns(
+    @POST("/api/diary/add")
+    suspend fun createDiary(
         @Header("Authorization") token: String,
-        @Path("orderId") orderId: Long
-    ): ApiResponse<List<OrderCheckIn>>
+        @Body body: FoodDiarySaveRequest
+    ): ApiResponse<FoodDiary>
 
-    @POST("/api/checkin/add")
-    suspend fun addCheckIn(
-        @Header("Authorization") token: String,
-        @Body body: CheckInCreateRequest
-    ): ApiResponse<OrderCheckIn>
-
-    @PUT("/api/checkin/update/{id}")
-    suspend fun updateCheckIn(
+    @PUT("/api/diary/update/{id}")
+    suspend fun updateDiary(
         @Header("Authorization") token: String,
         @Path("id") id: Long,
-        @Body body: CheckInUpdateRequest
-    ): ApiResponse<OrderCheckIn>
+        @Body body: FoodDiarySaveRequest
+    ): ApiResponse<FoodDiary>
 
-    @DELETE("/api/checkin/delete/{id}")
-    suspend fun deleteCheckIn(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
+    @DELETE("/api/diary/delete/{id}")
+    suspend fun deleteDiary(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
+
+    @POST("/api/diary/{diaryId}/comment")
+    suspend fun addDiaryComment(
+        @Header("Authorization") token: String,
+        @Path("diaryId") diaryId: Long,
+        @Body body: FoodDiaryCommentCreateRequest
+    ): ApiResponse<FoodDiaryComment>
+
+    @DELETE("/api/diary/comment/{commentId}")
+    suspend fun deleteDiaryComment(
+        @Header("Authorization") token: String,
+        @Path("commentId") commentId: Long
+    ): ApiResponse<String>
 
     @GET("/api/admin/users")
     suspend fun adminUsers(@Header("Authorization") token: String): ApiResponse<List<User>>

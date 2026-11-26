@@ -5,12 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.xixikitchen.jetpack.data.Anniversary
 import com.xixikitchen.jetpack.data.AnniversarySaveRequest
 import com.xixikitchen.jetpack.data.Announcement
-import com.xixikitchen.jetpack.data.CheckInCreateRequest
-import com.xixikitchen.jetpack.data.CheckInUpdateRequest
 import com.xixikitchen.jetpack.data.CoupleNote
 import com.xixikitchen.jetpack.data.CoupleNoteSaveRequest
+import com.xixikitchen.jetpack.data.FoodDiary
+import com.xixikitchen.jetpack.data.FoodDiaryCommentCreateRequest
+import com.xixikitchen.jetpack.data.FoodDiarySaveRequest
 import com.xixikitchen.jetpack.data.KitchenRepository
-import com.xixikitchen.jetpack.data.OrderCheckIn
 import com.xixikitchen.jetpack.data.User
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
@@ -31,12 +31,11 @@ data class DiscoverUiState(
     val notes: List<CoupleNote> = emptyList(),
     val notesLoaded: Boolean = false,
     val anniversaries: List<Anniversary> = emptyList(),
-    val diaryEntries: List<OrderCheckIn> = emptyList(),
+    val diaryEntries: List<FoodDiary> = emptyList(),
     val diaryTotal: Long = 0,
     val diaryPage: Int = 1,
     val diaryLoaded: Boolean = false,
     val loadingMoreDiary: Boolean = false,
-    val orderCheckIns: Map<Long, List<OrderCheckIn>> = emptyMap(),
     val currentUser: User? = null
 ) {
     val loading: Boolean get() = activeRequests > 0
@@ -133,7 +132,7 @@ class DiscoverViewModel @Inject constructor(
     }
 
     fun refreshDiary() = runAction {
-        val pageData = repo.checkIns(token(), page = 1, pageSize = 20)
+        val pageData = repo.diaries(token(), page = 1, pageSize = 20)
         _state.update {
             it.copy(
                 diaryEntries = pageData.list,
@@ -152,7 +151,7 @@ class DiscoverViewModel @Inject constructor(
             try {
                 val nextPage = snapshot.diaryPage + 1
                 runCatching {
-                    repo.checkIns(token(), page = nextPage, pageSize = 20)
+                    repo.diaries(token(), page = nextPage, pageSize = 20)
                 }.onSuccess { pageData ->
                     _state.update { current ->
                         val merged = (current.diaryEntries + pageData.list).distinctBy { it.id }
@@ -172,83 +171,81 @@ class DiscoverViewModel @Inject constructor(
         }
     }
 
-    fun loadOrderCheckIns(orderId: Long) = runAction {
-        val list = repo.orderCheckIns(token(), orderId)
+    fun createDiary(req: FoodDiarySaveRequest, onSuccess: () -> Unit = {}) = runAction {
+        val created = repo.createDiary(token(), req)
         _state.update { current ->
-            current.copy(orderCheckIns = current.orderCheckIns + (orderId to list))
-        }
-    }
-
-    fun addCheckIn(orderId: Long, imageUrl: String, note: String) = runAction {
-        val created = repo.addCheckIn(token(), CheckInCreateRequest(orderId, imageUrl, note))
-        _state.update { current ->
-            val updatedOrderList = (current.orderCheckIns[orderId].orEmpty() + created)
-                .distinctBy { it.id }
-            val updatedDiary = if (current.diaryLoaded) {
-                (listOf(created) + current.diaryEntries).distinctBy { it.id }
-            } else {
-                current.diaryEntries
-            }
+            val updated = (listOf(created) + current.diaryEntries).distinctBy { it.id }
             current.copy(
-                orderCheckIns = current.orderCheckIns + (orderId to updatedOrderList),
-                diaryEntries = updatedDiary,
-                diaryTotal = if (current.diaryLoaded) current.diaryTotal + 1 else current.diaryTotal
+                diaryEntries = updated,
+                diaryTotal = current.diaryTotal + 1,
+                diaryLoaded = true
             )
         }
-        notify("成品打卡成功")
+        onSuccess()
+        notify("票根已生成")
     }
 
-    fun updateCheckIn(checkIn: OrderCheckIn, imageUrl: String, note: String) = runAction {
-        val updated = repo.updateCheckIn(token(), checkIn.id, CheckInUpdateRequest(imageUrl = imageUrl, note = note))
+    fun updateDiary(id: Long, req: FoodDiarySaveRequest, onSuccess: () -> Unit = {}) = runAction {
+        val updated = repo.updateDiary(token(), id, req)
         _state.update { current ->
-            val orderList = current.orderCheckIns[checkIn.orderId]?.map {
-                if (it.id == updated.id) updated else it
-            }
-            val updatedMap = if (orderList != null) {
-                current.orderCheckIns + (checkIn.orderId to orderList)
-            } else {
-                current.orderCheckIns
-            }
             current.copy(
-                orderCheckIns = updatedMap,
                 diaryEntries = current.diaryEntries.map { if (it.id == updated.id) updated else it }
             )
         }
-        notify("打卡已更新")
+        onSuccess()
+        notify("票根已更新")
     }
 
-    fun deleteCheckIn(checkIn: OrderCheckIn) = runAction {
-        repo.deleteCheckIn(token(), checkIn.id)
+    fun deleteDiary(diary: FoodDiary) = runAction {
+        repo.deleteDiary(token(), diary.id)
         _state.update { current ->
-            val orderList = current.orderCheckIns[checkIn.orderId]?.filterNot { it.id == checkIn.id }
-            val updatedMap = if (orderList != null) {
-                current.orderCheckIns + (checkIn.orderId to orderList)
-            } else {
-                current.orderCheckIns
-            }
-            val hadInDiary = current.diaryEntries.any { it.id == checkIn.id }
+            val existed = current.diaryEntries.any { it.id == diary.id }
             current.copy(
-                orderCheckIns = updatedMap,
-                diaryEntries = current.diaryEntries.filterNot { it.id == checkIn.id },
-                diaryTotal = if (hadInDiary) (current.diaryTotal - 1).coerceAtLeast(0) else current.diaryTotal
+                diaryEntries = current.diaryEntries.filterNot { it.id == diary.id },
+                diaryTotal = if (existed) (current.diaryTotal - 1).coerceAtLeast(0) else current.diaryTotal
             )
         }
-        notify("打卡已删除")
+        notify("票根已删除")
     }
 
-    fun uploadImage(
-        bytes: ByteArray,
-        fileName: String,
-        onSuccess: (String) -> Unit,
-        onFailure: () -> Unit
-    ) = runAction {
-        try {
-            val url = repo.uploadImageBytes(token(), bytes, fileName)
-            onSuccess(url)
-        } catch (e: Exception) {
-            onFailure()
-            throw e
+    fun addComment(diaryId: Long, content: String, replyToUserId: Long? = null) = runAction {
+        val added = repo.addDiaryComment(
+            token(),
+            diaryId,
+            FoodDiaryCommentCreateRequest(content = content, replyToUserId = replyToUserId)
+        )
+        _state.update { current ->
+            current.copy(
+                diaryEntries = current.diaryEntries.map { entry ->
+                    if (entry.id == diaryId) entry.copy(comments = entry.comments + added) else entry
+                }
+            )
         }
+        notify("评论已发送")
+    }
+
+    fun deleteComment(diaryId: Long, commentId: Long) = runAction {
+        repo.deleteDiaryComment(token(), commentId)
+        _state.update { current ->
+            current.copy(
+                diaryEntries = current.diaryEntries.map { entry ->
+                    if (entry.id == diaryId) {
+                        entry.copy(comments = entry.comments.filterNot { it.id == commentId })
+                    } else {
+                        entry
+                    }
+                }
+            )
+        }
+        notify("评论已删除")
+    }
+
+    suspend fun uploadImageBlocking(bytes: ByteArray, fileName: String): String {
+        return repo.uploadImageBytes(token(), bytes, fileName)
+    }
+
+    fun reportError(e: Throwable) {
+        notifyError(resolveErrorMessage(e))
     }
 
     private suspend fun refreshNotesBoardSync() {

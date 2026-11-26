@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,47 +30,32 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.xixikitchen.jetpack.data.Order
-import com.xixikitchen.jetpack.data.OrderCheckIn
-import com.xixikitchen.jetpack.ui.DiscoverUiState
-import com.xixikitchen.jetpack.ui.DiscoverViewModel
 import com.xixikitchen.jetpack.ui.KitchenUiState
 import com.xixikitchen.jetpack.ui.KitchenViewModel
-import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
 import com.xixikitchen.jetpack.ui.components.DishThumbnail
-import com.xixikitchen.jetpack.ui.components.PhotoLightboxDialog
 import com.xixikitchen.jetpack.ui.components.StatusFilterChip
 import com.xixikitchen.jetpack.ui.components.UserMiniAvatar
-import com.xixikitchen.jetpack.ui.components.realImageUrl
 import com.xixikitchen.jetpack.ui.components.rememberPullRefreshState
 import com.xixikitchen.jetpack.ui.components.statusText
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
 import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcave
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
-import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
 import com.xixikitchen.jetpack.ui.designsystem.theme.orderStatusColors
-import com.xixikitchen.jetpack.ui.noRippleCombinedPressable
 import com.xixikitchen.jetpack.ui.noRipplePressable
 
 private data class ResolvedOrderUsers(
@@ -328,24 +312,11 @@ private fun OrderCard(
 @Composable
 fun OrderDetailScreen(
     state: KitchenUiState,
-    discoverState: DiscoverUiState,
     vm: KitchenViewModel,
-    discoverVm: DiscoverViewModel,
     nav: NavHostController
 ) {
     val tokens = LocalGlassTokens.current
     val order = state.selectedOrder
-    var showCreateCheckIn by remember { mutableStateOf(false) }
-    var editingCheckIn by remember { mutableStateOf<OrderCheckIn?>(null) }
-    var actionTargetCheckIn by remember { mutableStateOf<OrderCheckIn?>(null) }
-    var deleteTargetCheckIn by remember { mutableStateOf<OrderCheckIn?>(null) }
-    var lightboxCheckIn by remember { mutableStateOf<OrderCheckIn?>(null) }
-
-    LaunchedEffect(order?.id, order?.status) {
-        if (order != null && order.status == 2) {
-            discoverVm.loadOrderCheckIns(order.id)
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -369,9 +340,7 @@ fun OrderDetailScreen(
             Box(Modifier.fillMaxSize().padding(padding))
         } else {
             val users = resolveOrderUsers(order, state)
-            val checkIns = discoverState.orderCheckIns[order.id].orEmpty()
             val currentUserId = state.user?.id ?: -1L
-            val isParticipant = order.fromUserId == currentUserId || order.toUserId == currentUserId
 
             LazyColumn(
                 modifier = Modifier
@@ -559,222 +528,7 @@ fun OrderDetailScreen(
                     }
                 }
 
-                if (order.status == 2) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 4.dp, top = 8.dp, end = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (checkIns.isEmpty()) "成品打卡" else "成品打卡 (${checkIns.size})",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = tokens.textPrimary
-                            )
-                        }
-                    }
-
-                    items(checkIns, key = { it.id }) { checkIn ->
-                        val canManage = discoverState.isAdmin || checkIn.userId == currentUserId
-                        OrderCheckInCard(
-                            checkIn = checkIn,
-                            canManage = canManage,
-                            onImageClick = { lightboxCheckIn = checkIn },
-                            onLongClick = { if (canManage) actionTargetCheckIn = checkIn }
-                        )
-                    }
-
-                    if (isParticipant) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .noRipplePressable(pressedScale = 0.975f) { showCreateCheckIn = true }
-                                    .glassConvex(20.dp)
-                                    .padding(vertical = 14.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (checkIns.isEmpty()) "📸 上传成品打卡" else "📸 再晒一张",
-                                    color = GlassAccent.primary,
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold)
-                                )
-                            }
-                        }
-                    }
-                }
-
                 item { Spacer(Modifier.height(24.dp)) }
-            }
-        }
-    }
-
-    if (showCreateCheckIn && order != null) {
-        CheckInEditorDialog(
-            initial = null,
-            onUpload = discoverVm::uploadImage,
-            onDismiss = { showCreateCheckIn = false },
-            onSave = { imageUrl, note ->
-                showCreateCheckIn = false
-                discoverVm.addCheckIn(order.id, imageUrl, note)
-            }
-        )
-    }
-
-    editingCheckIn?.let { target ->
-        CheckInEditorDialog(
-            initial = target,
-            onUpload = discoverVm::uploadImage,
-            onDismiss = { editingCheckIn = null },
-            onSave = { imageUrl, note ->
-                editingCheckIn = null
-                discoverVm.updateCheckIn(target, imageUrl, note)
-            }
-        )
-    }
-
-    actionTargetCheckIn?.let { target ->
-        val actionTokens = LocalGlassTokens.current
-        AlertDialog(
-            onDismissRequest = { actionTargetCheckIn = null },
-            modifier = Modifier.glassConvexOverlay(24.dp),
-            shape = RoundedCornerShape(24.dp),
-            containerColor = Color.Transparent,
-            title = {
-                Text(
-                    "成品打卡",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = GlassAccent.primaryDark
-                )
-            },
-            text = {
-                Text(
-                    "想要编辑或删除这张成品打卡吗？",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = actionTokens.textPrimary
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        editingCheckIn = target
-                        actionTargetCheckIn = null
-                    },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
-                ) {
-                    Text("编辑", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { actionTargetCheckIn = null }) {
-                        Text("取消", color = actionTokens.textSecondary)
-                    }
-                    TextButton(
-                        onClick = {
-                            deleteTargetCheckIn = target
-                            actionTargetCheckIn = null
-                        }
-                    ) {
-                        Text("删除", color = GlassAccent.error)
-                    }
-                }
-            }
-        )
-    }
-
-    deleteTargetCheckIn?.let { target ->
-        ConfirmDeleteDialog(
-            message = "确定要删除这张成品打卡吗？此操作无法撤销。",
-            onConfirm = {
-                deleteTargetCheckIn = null
-                discoverVm.deleteCheckIn(target)
-            },
-            onDismiss = { deleteTargetCheckIn = null }
-        )
-    }
-
-    lightboxCheckIn?.let { target ->
-        PhotoLightboxDialog(
-            imageUrl = target.imageUrl,
-            caption = target.note.takeIf { it.isNotBlank() },
-            onDismiss = { lightboxCheckIn = null }
-        )
-    }
-}
-
-@Composable
-private fun OrderCheckInCard(
-    checkIn: OrderCheckIn,
-    canManage: Boolean,
-    onImageClick: () -> Unit,
-    onLongClick: () -> Unit
-) {
-    val tokens = LocalGlassTokens.current
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .noRippleCombinedPressable(
-                pressedScale = 0.985f,
-                onLongClick = if (canManage) onLongClick else null,
-                onClick = onImageClick
-            )
-            .glassConvex(20.dp)
-            .padding(14.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            AsyncImage(
-                model = realImageUrl(checkIn.imageUrl),
-                contentDescription = "成品照",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(GlassAccent.wash),
-                contentScale = ContentScale.Crop
-            )
-            if (checkIn.note.isNotBlank()) {
-                Text(
-                    text = checkIn.note,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    color = tokens.textPrimary,
-                    lineHeight = 20.sp
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    UserMiniAvatar(checkIn.authorAvatar, size = 22.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = checkIn.authorName ?: "成员",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                        color = tokens.textPrimary
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .background(GlassAccent.wash, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = if (checkIn.roleTag == "chef") "掌勺打卡" else "食客打卡",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = GlassAccent.primary
-                        )
-                    }
-                }
-                Text(
-                    text = checkIn.createdAt?.take(16).orEmpty(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = tokens.textSecondary
-                )
             }
         }
     }

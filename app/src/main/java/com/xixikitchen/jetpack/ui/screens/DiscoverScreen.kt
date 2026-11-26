@@ -1,5 +1,9 @@
 package com.xixikitchen.jetpack.ui.screens
 
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,13 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -46,31 +48,36 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.xixikitchen.jetpack.data.Anniversary
 import com.xixikitchen.jetpack.data.AnniversarySaveRequest
 import com.xixikitchen.jetpack.data.CoupleNote
-import com.xixikitchen.jetpack.data.OrderCheckIn
+import com.xixikitchen.jetpack.data.FoodDiary
+import com.xixikitchen.jetpack.data.FoodDiaryComment
 import com.xixikitchen.jetpack.ui.DiscoverUiState
 import com.xixikitchen.jetpack.ui.DiscoverViewModel
 import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
-import com.xixikitchen.jetpack.ui.components.DirectImageUploadField
+import com.xixikitchen.jetpack.ui.components.CropAspectRatio
+import com.xixikitchen.jetpack.ui.components.ImageCropperDialog
 import com.xixikitchen.jetpack.ui.components.PhotoLightboxDialog
 import com.xixikitchen.jetpack.ui.components.StatusFilterChip
 import com.xixikitchen.jetpack.ui.components.SwipeRevealBox
+import com.xixikitchen.jetpack.ui.components.TicketStubCard
 import com.xixikitchen.jetpack.ui.components.UserMiniAvatar
-import com.xixikitchen.jetpack.ui.components.realImageUrl
+import com.xixikitchen.jetpack.ui.components.decodeBitmapWithExif
 import com.xixikitchen.jetpack.ui.components.rememberPullRefreshState
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
 import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
@@ -80,6 +87,9 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
 import com.xixikitchen.jetpack.ui.noRippleCombinedPressable
 import com.xixikitchen.jetpack.ui.noRipplePressable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -91,15 +101,21 @@ private enum class DiscoverSubTab(val label: String) {
     Diary("美食日记")
 }
 
+private data class TicketCreatorDraft(
+    val rawBitmap: Bitmap,
+    val croppedBitmap: Bitmap,
+    val aspectRatio: CropAspectRatio
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
     state: DiscoverUiState,
-    vm: DiscoverViewModel,
-    onOpenOrder: (Long) -> Unit,
-    onGoOrders: () -> Unit
+    vm: DiscoverViewModel
 ) {
     val tokens = LocalGlassTokens.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var subTab by rememberSaveable { mutableStateOf(DiscoverSubTab.Announcements) }
     val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
 
@@ -113,10 +129,27 @@ fun DiscoverScreen(
     var anniversaryActionTarget by remember { mutableStateOf<Anniversary?>(null) }
     var deleteAnniversaryTarget by remember { mutableStateOf<Anniversary?>(null) }
 
-    var editingCheckIn by remember { mutableStateOf<OrderCheckIn?>(null) }
-    var checkInActionTarget by remember { mutableStateOf<OrderCheckIn?>(null) }
-    var deleteCheckInTarget by remember { mutableStateOf<OrderCheckIn?>(null) }
-    var lightboxCheckIn by remember { mutableStateOf<OrderCheckIn?>(null) }
+    // 票根制作 / 裁切 / 编辑 / 评论状态
+    var pendingCropBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var creatorDraft by remember { mutableStateOf<TicketCreatorDraft?>(null) }
+    var editingDiary by remember { mutableStateOf<FoodDiary?>(null) }
+    var diaryActionTarget by remember { mutableStateOf<FoodDiary?>(null) }
+    var deleteDiaryTarget by remember { mutableStateOf<FoodDiary?>(null) }
+    var lightboxDiary by remember { mutableStateOf<FoodDiary?>(null) }
+    var commentTarget by remember { mutableStateOf<Pair<FoodDiary, FoodDiaryComment?>?>(null) }
+    var commentActionTarget by remember { mutableStateOf<Pair<FoodDiary, FoodDiaryComment>?>(null) }
+
+    val ticketPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val decoded = withContext(Dispatchers.IO) { decodeBitmapWithExif(context, uri) }
+            if (decoded != null) {
+                pendingCropBitmap = decoded
+            }
+        }
+    }
 
     LaunchedEffect(subTab) {
         when (subTab) {
@@ -180,15 +213,79 @@ fun DiscoverScreen(
 
                     DiscoverSubTab.Diary -> DiaryContent(
                         state = state,
-                        onOpenOrder = onOpenOrder,
-                        onGoOrders = onGoOrders,
-                        onImageClick = { lightboxCheckIn = it },
-                        onLongClick = { checkInActionTarget = it },
+                        onCreateTicket = { ticketPicker.launch("image/*") },
+                        onImageClick = { lightboxDiary = it },
+                        onLongClick = { diaryActionTarget = it },
+                        onCommentClick = { diary, replyComment ->
+                            if (replyComment == null) {
+                                commentTarget = diary to null
+                            } else {
+                                val currentUserId = state.currentUser?.id ?: -1L
+                                val canDelete = state.isAdmin ||
+                                    replyComment.userId == currentUserId ||
+                                    diary.userId == currentUserId
+                                if (canDelete) {
+                                    commentActionTarget = diary to replyComment
+                                } else {
+                                    commentTarget = diary to replyComment
+                                }
+                            }
+                        },
                         onLoadMore = vm::loadMoreDiary
                     )
                 }
             }
         }
+    }
+
+    // 选图后立即弹出交互式裁切器
+    pendingCropBitmap?.let { raw ->
+        ImageCropperDialog(
+            sourceBitmap = raw,
+            initialRatio = CropAspectRatio.RATIO_4_3,
+            onDismiss = { pendingCropBitmap = null },
+            onCropConfirmed = { cropped, chosenRatio ->
+                pendingCropBitmap = null
+                creatorDraft = TicketCreatorDraft(
+                    rawBitmap = raw,
+                    croppedBitmap = cropped,
+                    aspectRatio = chosenRatio
+                )
+            }
+        )
+    }
+
+    // 新建票根工作台
+    creatorDraft?.let { draft ->
+        TicketCreatorDialog(
+            initialDiary = null,
+            initialRawBitmap = draft.rawBitmap,
+            initialCroppedBitmap = draft.croppedBitmap,
+            initialRatio = draft.aspectRatio,
+            authorName = state.currentUser?.nickname,
+            vm = vm,
+            onDismiss = { creatorDraft = null },
+            onSubmit = { req ->
+                vm.createDiary(req) {
+                    creatorDraft = null
+                }
+            }
+        )
+    }
+
+    // 编辑已有票根工作台
+    editingDiary?.let { target ->
+        TicketCreatorDialog(
+            initialDiary = target,
+            authorName = target.authorName ?: state.currentUser?.nickname,
+            vm = vm,
+            onDismiss = { editingDiary = null },
+            onSubmit = { req ->
+                vm.updateDiary(target.id, req) {
+                    editingDiary = null
+                }
+            }
+        )
     }
 
     if (showCreateNote || editingNote != null) {
@@ -410,34 +507,22 @@ fun DiscoverScreen(
         )
     }
 
-    editingCheckIn?.let { target ->
-        CheckInEditorDialog(
-            initial = target,
-            onUpload = vm::uploadImage,
-            onDismiss = { editingCheckIn = null },
-            onSave = { imageUrl, note ->
-                editingCheckIn = null
-                vm.updateCheckIn(target, imageUrl, note)
-            }
-        )
-    }
-
-    checkInActionTarget?.let { target ->
+    diaryActionTarget?.let { target ->
         AlertDialog(
-            onDismissRequest = { checkInActionTarget = null },
+            onDismissRequest = { diaryActionTarget = null },
             modifier = Modifier.glassConvexOverlay(24.dp),
             shape = RoundedCornerShape(24.dp),
             containerColor = Color.Transparent,
             title = {
                 Text(
-                    "美食日记",
+                    target.title,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
                     color = GlassAccent.primaryDark
                 )
             },
             text = {
                 Text(
-                    "想要编辑或删除这条成品打卡吗？",
+                    "想要编辑或删除这张美食票根吗？",
                     style = MaterialTheme.typography.bodyMedium,
                     color = tokens.textPrimary
                 )
@@ -445,24 +530,24 @@ fun DiscoverScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        editingCheckIn = target
-                        checkInActionTarget = null
+                        editingDiary = target
+                        diaryActionTarget = null
                     },
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
                 ) {
-                    Text("编辑", fontWeight = FontWeight.Bold)
+                    Text("编辑票根", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = { checkInActionTarget = null }) {
+                    TextButton(onClick = { diaryActionTarget = null }) {
                         Text("取消", color = tokens.textSecondary)
                     }
                     TextButton(
                         onClick = {
-                            deleteCheckInTarget = target
-                            checkInActionTarget = null
+                            deleteDiaryTarget = target
+                            diaryActionTarget = null
                         }
                     ) {
                         Text("删除", color = GlassAccent.error)
@@ -472,22 +557,87 @@ fun DiscoverScreen(
         )
     }
 
-    deleteCheckInTarget?.let { target ->
+    deleteDiaryTarget?.let { target ->
         ConfirmDeleteDialog(
-            message = "确定要删除这条美食日记吗？此操作无法撤销。",
+            message = "确定要删除美食票根 \"${target.title}\" 吗？相关评论也会一并清除。",
             onConfirm = {
-                deleteCheckInTarget = null
-                vm.deleteCheckIn(target)
+                deleteDiaryTarget = null
+                vm.deleteDiary(target)
             },
-            onDismiss = { deleteCheckInTarget = null }
+            onDismiss = { deleteDiaryTarget = null }
         )
     }
 
-    lightboxCheckIn?.let { target ->
+    commentTarget?.let { (diary, replyTo) ->
+        DiaryCommentDialog(
+            diaryTitle = diary.title,
+            replyToName = replyTo?.authorName,
+            onDismiss = { commentTarget = null },
+            onSend = { text ->
+                commentTarget = null
+                vm.addComment(diary.id, text, replyTo?.userId)
+            }
+        )
+    }
+
+    commentActionTarget?.let { (diary, comment) ->
+        AlertDialog(
+            onDismissRequest = { commentActionTarget = null },
+            modifier = Modifier.glassConvexOverlay(24.dp),
+            shape = RoundedCornerShape(24.dp),
+            containerColor = Color.Transparent,
+            title = {
+                Text(
+                    text = comment.authorName ?: "评论操作",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = GlassAccent.primaryDark
+                )
+            },
+            text = {
+                Text(
+                    text = comment.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = tokens.textPrimary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        commentActionTarget = null
+                        commentTarget = diary to comment
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+                ) {
+                    Text("回复", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { commentActionTarget = null }) {
+                        Text("取消", color = tokens.textSecondary)
+                    }
+                    TextButton(
+                        onClick = {
+                            commentActionTarget = null
+                            vm.deleteComment(diary.id, comment.id)
+                        }
+                    ) {
+                        Text("删除", color = GlassAccent.error)
+                    }
+                }
+            }
+        )
+    }
+
+    lightboxDiary?.let { target ->
         PhotoLightboxDialog(
             imageUrl = target.imageUrl,
-            caption = target.note.takeIf { it.isNotBlank() },
-            onDismiss = { lightboxCheckIn = null }
+            caption = listOfNotNull(
+                target.title.takeIf { it.isNotBlank() },
+                target.content.takeIf { it.isNotBlank() }
+            ).joinToString(" · ").takeIf { it.isNotBlank() },
+            onDismiss = { lightboxDiary = null }
         )
     }
 }
@@ -951,93 +1101,99 @@ private fun FridgeNoteCard(
 @Composable
 private fun DiaryContent(
     state: DiscoverUiState,
-    onOpenOrder: (Long) -> Unit,
-    onGoOrders: () -> Unit,
-    onImageClick: (OrderCheckIn) -> Unit,
-    onLongClick: (OrderCheckIn) -> Unit,
+    onCreateTicket: () -> Unit,
+    onImageClick: (FoodDiary) -> Unit,
+    onLongClick: (FoodDiary) -> Unit,
+    onCommentClick: (FoodDiary, FoodDiaryComment?) -> Unit,
     onLoadMore: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     val currentUserId = state.currentUser?.id ?: -1L
 
-    if (state.diaryEntries.isEmpty() && !state.loading) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 24.dp),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .glassConvex(24.dp)
-                    .padding(24.dp)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "美食日记还是空的",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                        color = tokens.textPrimary
-                    )
-                    Text(
-                        text = "订单完成后，在订单详情里上传成品照和一句小记，就会沉淀到这里。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = tokens.textSecondary
-                    )
-                    Button(
-                        onClick = onGoOrders,
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
-                    ) {
-                        Text("去订单页看看", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-        return
-    }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        items(state.diaryEntries, key = { "diary_${it.id}" }) { entry ->
-            val canManage = state.isAdmin || entry.userId == currentUserId
-            DiaryTimelineItem(
-                entry = entry,
-                canManage = canManage,
-                onImageClick = { onImageClick(entry) },
-                onLongClick = { if (canManage) onLongClick(entry) },
-                onOpenOrder = { onOpenOrder(entry.orderId) }
+        item {
+            SectionActionHeader(
+                title = "美食票根",
+                actionLabel = "制作票根",
+                onAction = onCreateTicket
             )
         }
 
-        if (state.diaryEntries.size < state.diaryTotal) {
+        if (state.diaryEntries.isEmpty() && !state.loading) {
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .noRipplePressable(enabled = !state.loadingMoreDiary, pressedScale = 0.97f, onClick = onLoadMore)
-                        .glassConcave(18.dp)
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
+                        .glassConvex(24.dp)
+                        .padding(24.dp)
                 ) {
-                    if (state.loadingMoreDiary) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = GlassAccent.primary,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(
-                            text = "加载更多",
-                            color = GlassAccent.primary,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                            text = "还没有美味票根",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = tokens.textPrimary
                         )
+                        Text(
+                            text = "上传一张美食照片，裁切画面并套用旅行票根模板，制作你们的专属美食手帐。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = tokens.textSecondary
+                        )
+                        Button(
+                            onClick = onCreateTicket,
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+                        ) {
+                            Text("制作第一张票根", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        } else {
+            items(state.diaryEntries, key = { "diary_${it.id}" }) { entry ->
+                val canManage = state.isAdmin || entry.userId == currentUserId
+                DiaryTicketItem(
+                    entry = entry,
+                    canManage = canManage,
+                    onImageClick = { onImageClick(entry) },
+                    onLongClick = { if (canManage) onLongClick(entry) },
+                    onCommentClick = { replyComment -> onCommentClick(entry, replyComment) }
+                )
+            }
+
+            if (state.diaryEntries.size < state.diaryTotal) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .noRipplePressable(
+                                enabled = !state.loadingMoreDiary,
+                                pressedScale = 0.97f,
+                                onClick = onLoadMore
+                            )
+                            .glassConcave(18.dp)
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (state.loadingMoreDiary) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = GlassAccent.primary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = "加载更多",
+                                color = GlassAccent.primary,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
                     }
                 }
             }
@@ -1048,135 +1204,165 @@ private fun DiaryContent(
 }
 
 @Composable
-private fun DiaryTimelineItem(
-    entry: OrderCheckIn,
+private fun DiaryTicketItem(
+    entry: FoodDiary,
     canManage: Boolean,
     onImageClick: () -> Unit,
     onLongClick: () -> Unit,
-    onOpenOrder: () -> Unit
+    onCommentClick: (FoodDiaryComment?) -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 4.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(GlassAccent.primary, CircleShape)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = entry.createdAt?.take(16).orEmpty(),
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = tokens.textSecondary
-            )
-        }
+        TicketStubCard(
+            diary = entry,
+            onImageClick = onImageClick,
+            onLongClick = if (canManage) onLongClick else null
+        )
 
-        Box(
+        // 票根底部互动条（发布者信息 + 评论按钮）
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .noRippleCombinedPressable(
-                    pressedScale = 0.985f,
-                    onLongClick = if (canManage) onLongClick else null,
-                    onClick = onImageClick
-                )
-                .glassConvex(22.dp)
-                .padding(14.dp)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                AsyncImage(
-                    model = realImageUrl(entry.imageUrl),
-                    contentDescription = "美食日记图片",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(GlassAccent.wash),
-                    contentScale = ContentScale.Crop
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                UserMiniAvatar(entry.authorAvatar, size = 20.dp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = entry.authorName ?: "成员",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = tokens.textPrimary
                 )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = entry.createdAt?.take(16).orEmpty(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tokens.textSecondary
+                )
+            }
 
-                if (entry.dishNames.isNotEmpty()) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(entry.dishNames.take(5)) { dishName ->
-                            Box(
-                                modifier = Modifier
-                                    .background(GlassAccent.wash, RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = dishName,
-                                    color = GlassAccent.primaryDark,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (entry.note.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .noRipplePressable(pressedScale = 0.94f) { onCommentClick(null) }
+                    .glassConvex(14.dp)
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.ChatBubbleOutline,
+                        contentDescription = "评论",
+                        tint = GlassAccent.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        text = entry.note,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                        color = tokens.textPrimary,
-                        lineHeight = 22.sp
+                        text = if (entry.comments.isEmpty()) "评论" else "评论 ${entry.comments.size}",
+                        color = GlassAccent.primary,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }
+            }
+        }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        UserMiniAvatar(entry.authorAvatar, size = 22.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = entry.authorName ?: "成员",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                            color = tokens.textPrimary
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .background(GlassAccent.wash, RoundedCornerShape(8.dp))
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = if (entry.roleTag == "chef") "掌勺打卡" else "食客打卡",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = GlassAccent.primary
-                            )
+        // 评论列表
+        if (entry.comments.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glassConcave(16.dp)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                entry.comments.forEach { comment ->
+                    val lineText = buildAnnotatedString {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = GlassAccent.primaryDark)) {
+                            append(comment.authorName ?: "成员")
+                        }
+                        if (!comment.replyToName.isNullOrBlank()) {
+                            withStyle(SpanStyle(color = tokens.textSecondary)) {
+                                append(" 回复 ")
+                            }
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = GlassAccent.primaryDark)) {
+                                append("@${comment.replyToName}")
+                            }
+                        }
+                        withStyle(SpanStyle(color = tokens.textPrimary)) {
+                            append("：${comment.content}")
                         }
                     }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    Text(
+                        text = lineText,
+                        style = MaterialTheme.typography.bodySmall,
+                        lineHeight = 18.sp,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .noRipplePressable(pressedScale = 0.94f, onClick = onOpenOrder)
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "查看订单",
-                            color = GlassAccent.primary,
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = GlassAccent.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
+                            .fillMaxWidth()
+                            .noRipplePressable(pressedScale = 0.99f) { onCommentClick(comment) }
+                            .padding(vertical = 2.dp)
+                    )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DiaryCommentDialog(
+    diaryTitle: String,
+    replyToName: String?,
+    onDismiss: () -> Unit,
+    onSend: (String) -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    var text by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.glassConvexOverlay(24.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
+        title = {
+            Text(
+                text = if (!replyToName.isNullOrBlank()) "回复 @$replyToName" else "评论「$diaryTitle」",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                color = GlassAccent.primaryDark,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { if (it.length <= 300) text = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("说点什么（最多300字）") },
+                shape = RoundedCornerShape(16.dp),
+                minLines = 2,
+                maxLines = 4,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = GlassAccent.primary,
+                    focusedLabelColor = GlassAccent.primary
+                )
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSend(text.trim()) },
+                enabled = text.trim().isNotEmpty(),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+            ) {
+                Text("发送", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = tokens.textSecondary)
+            }
+        }
+    )
 }
 
 @Composable
@@ -1438,76 +1624,6 @@ private fun AnniversaryEditorDialog(
             )
         }
     }
-}
-
-@Composable
-internal fun CheckInEditorDialog(
-    initial: OrderCheckIn?,
-    onUpload: (bytes: ByteArray, fileName: String, onSuccess: (String) -> Unit, onFailure: () -> Unit) -> Unit,
-    onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit
-) {
-    val tokens = LocalGlassTokens.current
-    var imageUrl by remember { mutableStateOf(initial?.imageUrl ?: "") }
-    var note by remember { mutableStateOf(initial?.note ?: "") }
-    var uploading by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = Modifier.glassConvexOverlay(24.dp),
-        shape = RoundedCornerShape(24.dp),
-        containerColor = Color.Transparent,
-        title = {
-            Text(
-                if (initial == null) "成品打卡" else "编辑打卡",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                color = GlassAccent.primaryDark
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                DirectImageUploadField(
-                    value = imageUrl,
-                    label = "出锅成品照",
-                    emptyText = "点击选择成品照片",
-                    uploading = uploading,
-                    filePrefix = "checkin",
-                    onUpload = onUpload,
-                    onUploadingChange = { uploading = it },
-                    onValueChange = { imageUrl = it },
-                    previewHeight = 160.dp
-                )
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { if (it.length <= 300) note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("写一句小记（可选）") },
-                    shape = RoundedCornerShape(16.dp),
-                    minLines = 2,
-                    maxLines = 4,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GlassAccent.primary,
-                        focusedLabelColor = GlassAccent.primary
-                    )
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSave(imageUrl.trim(), note.trim()) },
-                enabled = !uploading && imageUrl.isNotBlank(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
-            ) {
-                Text("保存", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !uploading) {
-                Text("取消", color = tokens.textSecondary)
-            }
-        }
-    )
 }
 
 @Composable

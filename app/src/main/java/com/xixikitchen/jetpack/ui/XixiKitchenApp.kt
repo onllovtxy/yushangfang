@@ -172,14 +172,11 @@ fun XixiKitchenApp(
                             composable("discover") {
                                 TopLevelDestination(
                                     nav,
-                                    "discover",
-                                    backdropBlur = if (currentRoute == "orderDetail/{id}") 28.dp else 0.dp
+                                    "discover"
                                 ) {
                                     DiscoverScreen(
                                         state = discoverState,
-                                        vm = discoverVm,
-                                        onOpenOrder = { orderId -> nav.navigate("orderDetail/$orderId") },
-                                        onGoOrders = { nav.navigateToTopLevel("orders") }
+                                        vm = discoverVm
                                     )
                                 }
                             }
@@ -235,7 +232,7 @@ fun XixiKitchenApp(
                                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: 0L
                                 LaunchedEffect(id) { vm.loadOrderDetail(id) }
                                 NestedPageSurface {
-                                    OrderDetailScreen(state, discoverState, vm, discoverVm, nav)
+                                    OrderDetailScreen(state, vm, nav)
                                 }
                             }
                         }
