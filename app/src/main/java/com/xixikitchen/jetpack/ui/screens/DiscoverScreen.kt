@@ -1101,9 +1101,6 @@ private fun DiaryContent(
     onCommentClick: (FoodDiary, FoodDiaryComment?) -> Unit,
     onLoadMore: () -> Unit
 ) {
-    val tokens = LocalGlassTokens.current
-    val currentUserId = state.currentUser?.id ?: -1L
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1117,33 +1114,7 @@ private fun DiaryContent(
         }
 
         if (state.diaryEntries.isEmpty() && !state.loading) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .glassConvex(24.dp)
-                        .padding(24.dp)
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "还没有美味票根",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                            color = tokens.textPrimary
-                        )
-                        Button(
-                            onClick = onCreateTicket,
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
-                        ) {
-                            Text("制作第一张票根", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
+            // 没有票根时留空，创建入口在右上角「制作票根」
         } else {
             items(state.diaryEntries, key = { "diary_${it.id}" }) { entry ->
                 DiaryTicketItem(

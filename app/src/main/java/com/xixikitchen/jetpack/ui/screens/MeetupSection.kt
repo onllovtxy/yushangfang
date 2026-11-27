@@ -33,9 +33,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,7 +44,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -556,51 +556,46 @@ internal fun MeetupEditorDialog(
     var uploading1 by remember { mutableStateOf(false) }
     var uploading2 by remember { mutableStateOf(false) }
 
-    // null | "arrive" | "leave"
-    var pickingDateTarget by remember { mutableStateOf<String?>(null) }
+    var showRangePicker by remember { mutableStateOf(false) }
 
     val dateInvalid = remember(arriveDate, leaveDate) {
         leaveDate < arriveDate
+    }
+    val stayDays = remember(arriveDate, leaveDate) {
+        val start = parseMeetupUtcMillis(arriveDate)
+        val end = parseMeetupUtcMillis(leaveDate)
+        if (start == null || end == null || end < start) 1L else (end - start) / 86_400_000L + 1L
     }
 
     AlertDialog(
         onDismissRequest = {
             if (!uploading1 && !uploading2) onDismiss()
         },
-        modifier = Modifier.glassConvexOverlay(24.dp),
+        modifier = Modifier
+            .width(280.dp)
+            .glassConvexOverlay(24.dp),
         shape = RoundedCornerShape(24.dp),
         containerColor = Color.Transparent,
         title = {
             Text(
                 text = if (initial == null) "记一次见面" else "编辑见面记录",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
                 color = GlassAccent.primaryDark
             )
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    MeetupDateSelectorBox(
-                        label = "哪天见面",
-                        dateText = arriveDate,
-                        onClick = { pickingDateTarget = "arrive" },
-                        modifier = Modifier.weight(1f)
-                    )
-                    MeetupDateSelectorBox(
-                        label = "哪天分别",
-                        dateText = leaveDate,
-                        onClick = { pickingDateTarget = "leave" },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                MeetupDateRangeBox(
+                    arriveDate = arriveDate,
+                    leaveDate = leaveDate,
+                    stayDays = stayDays,
+                    onClick = { showRangePicker = true }
+                )
 
                 if (dateInvalid) {
                     Text(
@@ -616,7 +611,8 @@ internal fun MeetupEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("见面城市 / 地点") },
                     placeholder = { Text("例如：杭州 ⇄ 上海") },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    textStyle = MaterialTheme.typography.bodySmall,
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = GlassAccent.primary,
@@ -629,10 +625,11 @@ internal fun MeetupEditorDialog(
                     onValueChange = { if (it.length <= 500) note = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("文字记录") },
-                    placeholder = { Text("写下见面那天的心情、一起吃的好吃的、离开时的舍不得...") },
-                    shape = RoundedCornerShape(16.dp),
-                    minLines = 3,
-                    maxLines = 5,
+                    placeholder = { Text("写下那天的心情...") },
+                    shape = RoundedCornerShape(14.dp),
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    minLines = 2,
+                    maxLines = 4,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = GlassAccent.primary,
                         focusedLabelColor = GlassAccent.primary
@@ -641,7 +638,7 @@ internal fun MeetupEditorDialog(
 
                 Text(
                     text = "见面照片",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = tokens.textSecondary
                 )
 
@@ -701,30 +698,28 @@ internal fun MeetupEditorDialog(
         }
     )
 
-    pickingDateTarget?.let { target ->
-        val initialMillis = parseMeetupUtcMillis(if (target == "arrive") arriveDate else leaveDate)
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+    if (showRangePicker) {
+        val rangeState = rememberDateRangePickerState(
+            initialSelectedStartDateMillis = parseMeetupUtcMillis(arriveDate),
+            initialSelectedEndDateMillis = parseMeetupUtcMillis(leaveDate)
+        )
         DatePickerDialog(
-            onDismissRequest = { pickingDateTarget = null },
+            onDismissRequest = { showRangePicker = false },
             shape = RoundedCornerShape(24.dp),
             colors = DatePickerDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.glassConvexOverlay(24.dp),
             confirmButton = {
                 Button(
                     onClick = {
-                        pickerState.selectedDateMillis?.let { millis ->
-                            val picked = formatMeetupUtcMillis(millis)
-                            if (target == "arrive") {
-                                arriveDate = picked
-                                if (leaveDate < picked) {
-                                    leaveDate = picked
-                                }
-                            } else {
-                                leaveDate = picked
-                            }
+                        val startMillis = rangeState.selectedStartDateMillis
+                        val endMillis = rangeState.selectedEndDateMillis
+                        if (startMillis != null) {
+                            arriveDate = formatMeetupUtcMillis(startMillis)
+                            leaveDate = formatMeetupUtcMillis(endMillis ?: startMillis)
                         }
-                        pickingDateTarget = null
+                        showRangePicker = false
                     },
+                    enabled = rangeState.selectedStartDateMillis != null,
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
                 ) {
@@ -732,13 +727,35 @@ internal fun MeetupEditorDialog(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pickingDateTarget = null }) {
+                TextButton(onClick = { showRangePicker = false }) {
                     Text("取消", color = tokens.textSecondary)
                 }
             }
         ) {
-            DatePicker(
-                state = pickerState,
+            DateRangePicker(
+                state = rangeState,
+                modifier = Modifier.height(420.dp),
+                title = {
+                    Text(
+                        text = "选择见面区间",
+                        modifier = Modifier.padding(start = 24.dp, top = 16.dp),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                        color = GlassAccent.primaryDark
+                    )
+                },
+                headline = {
+                    Text(
+                        text = if (rangeState.selectedStartDateMillis != null && rangeState.selectedEndDateMillis != null) {
+                            "${formatMeetupUtcMillis(rangeState.selectedStartDateMillis!!)} ~ ${formatMeetupUtcMillis(rangeState.selectedEndDateMillis!!)}"
+                        } else {
+                            "点选开始与结束日期"
+                        },
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = tokens.textPrimary
+                    )
+                },
+                showModeToggle = false,
                 colors = DatePickerDefaults.colors(containerColor = Color.Transparent)
             )
         }
@@ -746,30 +763,48 @@ internal fun MeetupEditorDialog(
 }
 
 @Composable
-private fun MeetupDateSelectorBox(
-    label: String,
-    dateText: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+private fun MeetupDateRangeBox(
+    arriveDate: String,
+    leaveDate: String,
+    stayDays: Long,
+    onClick: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     Box(
-        modifier = modifier
-            .noRipplePressable(pressedScale = 0.97f, onClick = onClick)
+        modifier = Modifier
+            .fillMaxWidth()
+            .noRipplePressable(pressedScale = 0.98f, onClick = onClick)
             .glassConcaveOverlay(16.dp)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = tokens.textSecondary
-            )
-            Text(
-                text = dateText,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
-                color = GlassAccent.primary
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "见面 ~ 分别",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tokens.textSecondary
+                )
+                Text(
+                    text = "${arriveDate.replace('-', '.')} → ${leaveDate.replace('-', '.')}",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = GlassAccent.primary
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .background(GlassAccent.washStrong, RoundedCornerShape(999.dp))
+                    .padding(horizontal = 9.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = "$stayDays 天",
+                    color = GlassAccent.primaryDark,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold)
+                )
+            }
         }
     }
 }
@@ -816,7 +851,7 @@ private fun MeetupPhotoUploadSlot(
 
     Box(
         modifier = modifier
-            .height(116.dp)
+            .height(84.dp)
             .noRipplePressable(enabled = !uploading, pressedScale = 0.97f) {
                 launcher.launch("image/*")
             }
