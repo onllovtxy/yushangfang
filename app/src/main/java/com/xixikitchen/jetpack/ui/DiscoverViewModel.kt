@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.xixikitchen.jetpack.data.Anniversary
 import com.xixikitchen.jetpack.data.AnniversarySaveRequest
 import com.xixikitchen.jetpack.data.Announcement
+import com.xixikitchen.jetpack.data.CoupleMeetup
+import com.xixikitchen.jetpack.data.CoupleMeetupSaveRequest
 import com.xixikitchen.jetpack.data.CoupleNote
 import com.xixikitchen.jetpack.data.CoupleNoteSaveRequest
 import com.xixikitchen.jetpack.data.FoodDiary
@@ -31,6 +33,8 @@ data class DiscoverUiState(
     val notes: List<CoupleNote> = emptyList(),
     val notesLoaded: Boolean = false,
     val anniversaries: List<Anniversary> = emptyList(),
+    val meetups: List<CoupleMeetup> = emptyList(),
+    val meetupsLoaded: Boolean = false,
     val diaryEntries: List<FoodDiary> = emptyList(),
     val diaryTotal: Long = 0,
     val diaryPage: Int = 1,
@@ -73,12 +77,15 @@ class DiscoverViewModel @Inject constructor(
         viewModelScope.launch {
             repo.spaceRefreshEvents.collect {
                 val hadNotes = _state.value.notesLoaded
+                val hadMeetups = _state.value.meetupsLoaded
                 val hadDiary = _state.value.diaryLoaded
                 _state.update {
                     it.copy(
                         notes = emptyList(),
                         notesLoaded = false,
                         anniversaries = emptyList(),
+                        meetups = emptyList(),
+                        meetupsLoaded = false,
                         diaryEntries = emptyList(),
                         diaryTotal = 0,
                         diaryPage = 1,
@@ -87,6 +94,7 @@ class DiscoverViewModel @Inject constructor(
                 }
                 if (currentToken.isNotBlank()) {
                     if (hadNotes) refreshNotesBoard()
+                    if (hadMeetups) refreshMeetups()
                     if (hadDiary) refreshDiary()
                 }
             }
@@ -152,6 +160,31 @@ class DiscoverViewModel @Inject constructor(
         _state.update { it.copy(anniversaries = list) }
         notify("纪念日已删除")
     }
+
+    fun refreshMeetups() = runAction {
+        val list = repo.meetups(token())
+        _state.update { it.copy(meetups = list, meetupsLoaded = true) }
+    }
+
+    fun saveMeetup(id: Long?, req: CoupleMeetupSaveRequest, onSuccess: () -> Unit = {}) = runAction {
+        if (id == null || id == 0L) {
+            repo.addMeetup(token(), req)
+        } else {
+            repo.updateMeetup(token(), id, req)
+        }
+        val list = repo.meetups(token())
+        _state.update { it.copy(meetups = list, meetupsLoaded = true) }
+        onSuccess()
+        notify("见面记录已保存")
+    }
+
+    fun deleteMeetup(id: Long) = runAction {
+        repo.deleteMeetup(token(), id)
+        val list = repo.meetups(token())
+        _state.update { it.copy(meetups = list, meetupsLoaded = true) }
+        notify("见面记录已删除")
+    }
+
 
     fun refreshDiary() = runAction {
         val pageData = repo.diaries(token(), page = 1, pageSize = 20)

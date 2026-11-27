@@ -137,6 +137,37 @@ data class AnniversarySaveRequest(
     val note: String
 )
 
+data class CoupleMeetup(
+    val id: Long = 0,
+    val arriveDate: String = "",
+    val leaveDate: String = "",
+    val city: String = "",
+    val note: String = "",
+    val photoUrl1: String = "",
+    val photoUrl2: String = "",
+    val meetIndex: Int = 1,
+    val farewellIndex: Int? = null,
+    val stayDays: Long = 1,
+    val gapDaysFromPrev: Long? = null,
+    val status: String = "past",
+    val daysUntilMeet: Long? = null,
+    val createdBy: Long? = null,
+    val authorName: String? = null,
+    val authorAvatar: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+
+data class CoupleMeetupSaveRequest(
+    val arriveDate: String,
+    val leaveDate: String,
+    val city: String,
+    val note: String,
+    val photoUrl1: String,
+    val photoUrl2: String
+)
+
+
 data class FoodDiaryComment(
     val id: Long = 0,
     val diaryId: Long = 0,

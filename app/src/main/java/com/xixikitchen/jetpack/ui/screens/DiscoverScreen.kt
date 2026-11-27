@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xixikitchen.jetpack.data.Anniversary
 import com.xixikitchen.jetpack.data.AnniversarySaveRequest
+import com.xixikitchen.jetpack.data.CoupleMeetup
 import com.xixikitchen.jetpack.data.CoupleNote
 import com.xixikitchen.jetpack.data.CoupleSpace
 import com.xixikitchen.jetpack.data.FoodDiary
@@ -100,6 +101,7 @@ import java.util.TimeZone
 private enum class DiscoverSubTab(val label: String) {
     Announcements("公告栏"),
     Notes("小纸条"),
+    Meetups("见面"),
     Diary("美食日记")
 }
 
@@ -135,6 +137,11 @@ fun DiscoverScreen(
     var anniversaryActionTarget by remember { mutableStateOf<Anniversary?>(null) }
     var deleteAnniversaryTarget by remember { mutableStateOf<Anniversary?>(null) }
 
+    var showCreateMeetup by remember { mutableStateOf(false) }
+    var editingMeetup by remember { mutableStateOf<CoupleMeetup?>(null) }
+    var deleteMeetupTarget by remember { mutableStateOf<CoupleMeetup?>(null) }
+    var meetupLightbox by remember { mutableStateOf<Pair<String, String?>?>(null) }
+
     // 票根制作 / 裁切 / 编辑 / 评论状态
     var pendingCropBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var creatorDraft by remember { mutableStateOf<TicketCreatorDraft?>(null) }
@@ -161,6 +168,7 @@ fun DiscoverScreen(
         when (subTab) {
             DiscoverSubTab.Announcements -> if (!state.announcementsLoaded) vm.refreshAnnouncements()
             DiscoverSubTab.Notes -> if (!state.notesLoaded) vm.refreshNotesBoard()
+            DiscoverSubTab.Meetups -> if (!state.meetupsLoaded) vm.refreshMeetups()
             DiscoverSubTab.Diary -> if (!state.diaryLoaded) vm.refreshDiary()
         }
     }
@@ -176,6 +184,7 @@ fun DiscoverScreen(
                 when (subTab) {
                     DiscoverSubTab.Announcements -> vm.refreshAnnouncements()
                     DiscoverSubTab.Notes -> vm.refreshNotesBoard()
+                    DiscoverSubTab.Meetups -> vm.refreshMeetups()
                     DiscoverSubTab.Diary -> vm.refreshDiary()
                 }
             },
@@ -224,6 +233,14 @@ fun DiscoverScreen(
                         onAddNote = { showCreateNote = true },
                         onNoteLongClick = { noteActionTarget = it },
                         onNoteDeleteRequest = { deleteNoteTarget = it }
+                    )
+
+                    DiscoverSubTab.Meetups -> MeetupsContent(
+                        state = state,
+                        onAddMeetup = { showCreateMeetup = true },
+                        onMeetupLongClick = { editingMeetup = it },
+                        onMeetupDeleteRequest = { deleteMeetupTarget = it },
+                        onPhotoClick = { url, caption -> meetupLightbox = url to caption }
                     )
 
                     DiscoverSubTab.Diary -> DiaryContent(
@@ -633,6 +650,43 @@ fun DiscoverScreen(
                 target.content.takeIf { it.isNotBlank() }
             ).joinToString(" · ").takeIf { it.isNotBlank() },
             onDismiss = { lightboxDiary = null }
+        )
+    }
+
+    if (showCreateMeetup || editingMeetup != null) {
+        MeetupEditorDialog(
+            initial = editingMeetup,
+            vm = vm,
+            onDismiss = {
+                showCreateMeetup = false
+                editingMeetup = null
+            },
+            onSave = { req ->
+                val targetId = editingMeetup?.id
+                vm.saveMeetup(targetId, req) {
+                    showCreateMeetup = false
+                    editingMeetup = null
+                }
+            }
+        )
+    }
+
+    deleteMeetupTarget?.let { target ->
+        ConfirmDeleteDialog(
+            message = "确定要删除第 ${target.meetIndex} 次见面记录（${target.arriveDate} ~ ${target.leaveDate}）吗？",
+            onConfirm = {
+                deleteMeetupTarget = null
+                vm.deleteMeetup(target.id)
+            },
+            onDismiss = { deleteMeetupTarget = null }
+        )
+    }
+
+    meetupLightbox?.let { (url, caption) ->
+        PhotoLightboxDialog(
+            imageUrl = url,
+            caption = caption,
+            onDismiss = { meetupLightbox = null }
         )
     }
 }
