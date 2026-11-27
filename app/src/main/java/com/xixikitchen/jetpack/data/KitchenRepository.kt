@@ -110,6 +110,10 @@ class KitchenRepository @Inject constructor(
         api().updateMeetup(auth(token), id, req).unwrap()
     suspend fun deleteMeetup(token: String, id: Long) = api().deleteMeetup(auth(token), id).unwrap()
 
+    suspend fun moods(token: String, year: Int, month: Int) = api().moods(auth(token), year, month).unwrap()
+    suspend fun saveMood(token: String, req: CoupleMoodSaveRequest) = api().saveMood(auth(token), req).unwrap()
+    suspend fun deleteMood(token: String, date: String) = api().deleteMood(auth(token), date).unwrap()
+
 
     suspend fun diaries(token: String, page: Int = 1, pageSize: Int = 20) =
         api().diaries(auth(token), page, pageSize).unwrap()

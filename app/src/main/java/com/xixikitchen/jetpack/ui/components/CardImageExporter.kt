@@ -42,27 +42,26 @@ object CardImageExporter {
         meetup: CoupleMeetup,
         photos: List<Bitmap>
     ): Bitmap {
-        val density = context.resources.displayMetrics.density
         val width = 1080
-        val photoAreaHeight = if (photos.isEmpty()) 0f else photos.size * 380f * density
-        val headerHeight = 620f * density
-        val height = (headerHeight + photoAreaHeight + 40f * density).toInt()
+        val photoAreaHeight = if (photos.isEmpty()) 0f else photos.size * 380f
+        val headerHeight = 620f
+        val height = (headerHeight + photoAreaHeight + 40f).toInt()
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(PAPER)
 
-        val pad = 44f * density
-        var y = pad + 20f * density
+        val pad = 44f
+        var y = pad + 20f
 
         // 序号圆圈 + 标题
-        val circleR = 26f * density
+        val circleR = 26f
         canvas.drawCircle(
             pad + circleR, y + circleR, circleR,
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ACCENT }
         )
         val idxPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 28f * density
+            textSize = 28f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val idx = meetup.meetIndex.toString()
@@ -74,71 +73,77 @@ object CardImageExporter {
         )
         val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = INK
-            textSize = 42f * density
+            textSize = 42f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         canvas.drawText(
             "第 ${meetup.meetIndex} 次见面",
-            pad + circleR * 2 + 18f * density,
+            pad + circleR * 2 + 18f,
             y + circleR + titlePaint.textSize * 0.35f,
             titlePaint
         )
-        y += circleR * 2 + 40f * density
+        y += circleR * 2 + 40f
 
-        // 日期行
+        // 顶部日期行：左边见面日期，右边分别日期（各自对齐，互不覆盖）
         val bigDatePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = INK
-            textSize = 52f * density
+            textSize = 54f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val arrive = meetup.arriveDate.replace('-', '.')
         val leave = meetup.leaveDate.replace('-', '.')
-        canvas.drawText(arrive, pad, y + bigDatePaint.textSize, bigDatePaint)
-        val leaveWidth = bigDatePaint.measureText(leave)
-        canvas.drawText(leave, width - pad - leaveWidth, y + bigDatePaint.textSize, bigDatePaint)
+        val dateBaseline = y + bigDatePaint.textSize
+        canvas.drawText(arrive, pad, dateBaseline, bigDatePaint)
+        canvas.drawText(
+            leave,
+            width - pad - bigDatePaint.measureText(leave),
+            dateBaseline,
+            bigDatePaint
+        )
 
-        // 中间：相伴天数
+        // 「相伴 N 天」放在日期下方居中，单独一行
+        y = dateBaseline + 26f
         val pillPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = ACCENT_DARK
-            textSize = 26f * density
+            textSize = 26f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val pillText = "相伴 ${meetup.stayDays} 天"
-        val pillW = pillPaint.measureText(pillText) + 36f * density
-        val pillH = 52f * density
+        val pillW = pillPaint.measureText(pillText) + 36f
+        val pillH = 52f
         val pillLeft = (width - pillW) / 2f
         canvas.drawRoundRect(
-            RectF(pillLeft, y + 6f * density, pillLeft + pillW, y + 6f * density + pillH),
+            RectF(pillLeft, y, pillLeft + pillW, y + pillH),
             pillH / 2f, pillH / 2f,
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x1AD97724 }
         )
         canvas.drawText(
             pillText,
-            pillLeft + 18f * density,
-            y + 6f * density + pillH * 0.68f,
+            pillLeft + 18f,
+            y + pillH * 0.68f,
             pillPaint
         )
-        y += bigDatePaint.textSize + 50f * density
+        y += pillH + 30f
 
         // 城市
         if (meetup.city.isNotBlank()) {
             val cityPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = ACCENT_DARK
-                textSize = 30f * density
+                textSize = 30f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             canvas.drawText("📍 ${meetup.city}", pad, y + cityPaint.textSize, cityPaint)
-            y += cityPaint.textSize + 26f * density
+            y += cityPaint.textSize + 26f
         }
 
         // 文字小记
         if (meetup.note.isNotBlank()) {
             val notePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = INK
-                textSize = 32f * density
+                textSize = 32f
             }
             y = drawWrapped(canvas, meetup.note, notePaint, pad, y + notePaint.textSize, width - pad)
-            y += 26f * density
+            y += 26f
         }
 
         // 分割线
@@ -146,22 +151,22 @@ object CardImageExporter {
             pad, y, width - pad, y,
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = 0x33D97724
-                strokeWidth = 2f * density
+                strokeWidth = 2f
             }
         )
-        y += 24f * density
+        y += 24f
 
         // 照片
         if (photos.isNotEmpty()) {
-            val photoW = (width - pad * 2 - 16f * density * (photos.size - 1)) / photos.size
-            val photoH = 380f * density
+            val photoW = (width - pad * 2 - 16f * (photos.size - 1)) / photos.size
+            val photoH = 380f
             photos.forEachIndexed { i, photo ->
-                val left = pad + i * (photoW + 16f * density)
+                val left = pad + i * (photoW + 16f)
                 val rect = RectF(left, y, left + photoW, y + photoH)
                 canvas.save()
                 canvas.clipPath(
                     Path().apply {
-                        addRoundRect(rect, 20f * density, 20f * density, Path.Direction.CW)
+                        addRoundRect(rect, 20f, 20f, Path.Direction.CW)
                     }
                 )
                 canvas.drawBitmap(
@@ -183,31 +188,30 @@ object CardImageExporter {
         diary: FoodDiary,
         photo: Bitmap?
     ): Bitmap {
-        val density = context.resources.displayMetrics.density
         val width = 1080
         val height = 810
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(Color.WHITE)
 
-        val headerH = 130f * density
+        val headerH = 130f
         canvas.drawRect(
             0f, 0f, width.toFloat(), headerH,
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1D5C8B.toInt() }
         )
         val headerPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 34f * density
+            textSize = 34f
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
         }
-        canvas.drawText("GOURMET BOARDING PASS", 44f * density, headerH * 0.66f, headerPaint)
+        canvas.drawText("GOURMET BOARDING PASS", 44f, headerH * 0.66f, headerPaint)
 
-        val pad = 44f * density
+        val pad = 44f
         val photoRect = RectF(pad, headerH + pad, width * 0.56f, height - pad)
         canvas.save()
         canvas.clipPath(
             Path().apply {
-                addRoundRect(photoRect, 20f * density, 20f * density, Path.Direction.CW)
+                addRoundRect(photoRect, 20f, 20f, Path.Direction.CW)
             }
         )
         if (photo != null) {
@@ -222,48 +226,48 @@ object CardImageExporter {
         canvas.restore()
 
         val infoLeft = photoRect.right + pad
-        var y = headerH + pad + 40f * density
+        var y = headerH + pad + 40f
         val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF1E293B.toInt()
-            textSize = 56f * density
+            textSize = 56f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         canvas.drawText(
             diary.title.ifBlank { "今日份美味" },
             infoLeft, y + titlePaint.textSize, titlePaint
         )
-        y += titlePaint.textSize + 40f * density
+        y += titlePaint.textSize + 40f
 
         val subPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF64748B.toInt()
-            textSize = 32f * density
+            textSize = 32f
         }
         canvas.drawText(diary.location.ifBlank { "熙熙的小厨房" }, infoLeft, y + subPaint.textSize, subPaint)
-        y += subPaint.textSize + 30f * density
+        y += subPaint.textSize + 30f
         canvas.drawText(
             diary.createdAt?.take(10)?.replace('-', '.') ?: "",
             infoLeft, y + subPaint.textSize, subPaint
         )
-        y += subPaint.textSize + 40f * density
+        y += subPaint.textSize + 40f
 
         val tagPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = ACCENT_DARK
-            textSize = 30f * density
+            textSize = 30f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val tag = diary.moodTag.ifBlank { "超满足" }
-        val tagW = tagPaint.measureText(tag) + 40f * density
-        val tagH = 56f * density
+        val tagW = tagPaint.measureText(tag) + 40f
+        val tagH = 56f
         canvas.drawRoundRect(
             RectF(infoLeft, y, infoLeft + tagW, y + tagH),
             tagH / 2f, tagH / 2f,
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x1AD97724 }
         )
-        canvas.drawText(tag, infoLeft + 20f * density, y + tagH * 0.68f, tagPaint)
+        canvas.drawText(tag, infoLeft + 20f, y + tagH * 0.68f, tagPaint)
 
         val noPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF94A3B8.toInt()
-            textSize = 26f * density
+            textSize = 26f
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
         }
         canvas.drawText(

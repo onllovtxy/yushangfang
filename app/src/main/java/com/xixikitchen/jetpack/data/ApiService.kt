@@ -186,6 +186,25 @@ interface ApiService {
     @DELETE("/api/meetup/delete/{id}")
     suspend fun deleteMeetup(@Header("Authorization") token: String, @Path("id") id: Long): ApiResponse<String>
 
+    @GET("/api/mood/list")
+    suspend fun moods(
+        @Header("Authorization") token: String,
+        @Query("year") year: Int,
+        @Query("month") month: Int
+    ): ApiResponse<List<CoupleMood>>
+
+    @POST("/api/mood/save")
+    suspend fun saveMood(
+        @Header("Authorization") token: String,
+        @Body body: CoupleMoodSaveRequest
+    ): ApiResponse<CoupleMood>
+
+    @DELETE("/api/mood/delete")
+    suspend fun deleteMood(
+        @Header("Authorization") token: String,
+        @Query("date") date: String
+    ): ApiResponse<String>
+
 
     @GET("/api/diary/list")
     suspend fun diaries(

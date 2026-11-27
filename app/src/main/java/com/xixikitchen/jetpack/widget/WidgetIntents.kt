@@ -24,29 +24,37 @@ object WidgetLayouts {
 }
 
 object WidgetIntents {
+    /** 专用 action：保证每次点击都是一次新 Intent，能可靠走到 onNewIntent。 */
+    const val ACTION_OPEN = "com.xixikitchen.jetpack.OPEN_FROM_WIDGET"
+
     fun openApp(context: Context, type: WidgetType): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_MAIN
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            putExtra("open_route", routeFor(type))
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // 不能用 ACTION_MAIN + CATEGORY_LAUNCHER：系统会当成"回到原任务"，
+            // App 已在后台时不触发 onNewIntent，extras 直接丢失，于是不跳转。
+            action = ACTION_OPEN
+            putExtra(MainActivity.EXTRA_ROUTE, routeFor(type))
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         return PendingIntent.getActivity(
             context,
+            // 每个 widget 类型固定 requestCode，配合 UPDATE_CURRENT 刷新 extras
             type.ordinal + 1000,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
 
+    /** 票根在「发现」页的「美食日记」，纪念日也在「发现」页。 */
     private fun routeFor(type: WidgetType): String = "discover"
 }
 
 /**
- * 「添加到桌面」：优先用系统固定请求（Android 8.0+），旧版本提示去桌面长按添加。
+ * 把 widget 绑定到某一张卡片：
  *
- * 成功时系统会通过 [WidgetPinResultReceiver] 回传新增的 appWidgetId，
- * 我们在那里把这张卡片绑定到该 widget 上并立即刷新。
+ * 用户有多张票根/纪念日时，桌面上的 widget 需要一个"这张要显示哪一条"的选择。
+ * 目前策略是取列表第一条；后续可在 App 内长按卡片指定（见 WidgetStore.saveSelected）。
  */
 object WidgetPinner {
     const val ACTION_PIN_RESULT = "com.xixikitchen.jetpack.WIDGET_PIN_RESULT"

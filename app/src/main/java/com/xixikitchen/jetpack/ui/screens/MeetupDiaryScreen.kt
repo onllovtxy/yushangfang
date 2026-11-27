@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
@@ -56,6 +57,7 @@ import com.xixikitchen.jetpack.ui.components.rememberPullRefreshState
 import com.xixikitchen.jetpack.ui.designsystem.motion.AppDuration
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
 import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
+import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcave
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcaveOverlay
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
@@ -65,6 +67,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
+
+enum class DiaryTab(val label: String) {
+    Meetup("见面"),
+    Mood("每日心情")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,13 +118,19 @@ fun MeetupDiaryScreen(
         }
     }
 
+    var subTab by rememberSaveable { mutableStateOf(DiaryTab.Meetup) }
     var showCreateMeetup by remember { mutableStateOf(false) }
     var editingMeetup by remember { mutableStateOf<CoupleMeetup?>(null) }
     var meetupActionTarget by remember { mutableStateOf<CoupleMeetup?>(null) }
     var deleteMeetupTarget by remember { mutableStateOf<CoupleMeetup?>(null) }
     var meetupLightbox by remember { mutableStateOf<Pair<String, String?>?>(null) }
 
-    LaunchedEffect(Unit) { vm.refreshMeetups() }
+    LaunchedEffect(subTab) {
+        when (subTab) {
+            DiaryTab.Meetup -> vm.refreshMeetups()
+            DiaryTab.Mood -> Unit // 由 MoodsContent 自己按年月拉取
+        }
+    }
 
     // 新建按钮：进入页面 / 点击日记 Tab 时出现，5 秒无操作自动隐藏
     var showAddFab by remember { mutableStateOf(true) }
@@ -159,19 +172,61 @@ fun MeetupDiaryScreen(
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
+                // 顶部两个切换按钮：见面 / 每日心情
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DiaryTab.entries.forEach { tab ->
+                        val active = subTab == tab
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .noRipplePressable(pressedScale = 0.96f) { subTab = tab }
+                                .then(
+                                    if (active) Modifier.glassConvex(16.dp)
+                                    else Modifier.glassConcave(16.dp)
+                                )
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = tab.label,
+                                color = if (active) GlassAccent.primary else tokens.textSecondary,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = if (active) FontWeight.ExtraBold else FontWeight.Medium
+                                )
+                            )
+                        }
+                    }
+                }
+
                 Box(
                     Modifier
                         .fillMaxSize()
                         .padding(top = 12.dp)
                 ) {
-                    MeetupsContent(
-                        state = state,
-                        onMeetupActionRequest = { meetupActionTarget = it },
-                        onPhotoClick = { url, caption -> meetupLightbox = url to caption }
-                    )
+                    when (subTab) {
+                        DiaryTab.Meetup -> MeetupsContent(
+                            state = state,
+                            onMeetupActionRequest = { meetupActionTarget = it },
+                            onPhotoClick = { url, caption -> meetupLightbox = url to caption }
+                        )
+                        DiaryTab.Mood -> MoodsContent(
+                            state = state,
+                            currentUserId = state.currentUser?.id ?: 0L,
+                            partnerId = state.currentUser?.partnerId,
+                            onLoadMonth = { y, m -> vm.refreshMoods(y, m) },
+                            onSaveMood = { date, code, note ->
+                                vm.saveMood(date, code, note)
+                            }
+                        )
+                    }
 
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = showAddFab,
+                        visible = showAddFab && subTab == DiaryTab.Meetup,
                         enter = fadeIn(tween(AppDuration.quick)) + scaleIn(
                             animationSpec = tween(AppDuration.quick),
                             initialScale = 0.85f

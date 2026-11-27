@@ -7,6 +7,8 @@ import com.xixikitchen.jetpack.data.AnniversarySaveRequest
 import com.xixikitchen.jetpack.data.Announcement
 import com.xixikitchen.jetpack.data.CoupleMeetup
 import com.xixikitchen.jetpack.data.CoupleMeetupSaveRequest
+import com.xixikitchen.jetpack.data.CoupleMood
+import com.xixikitchen.jetpack.data.CoupleMoodSaveRequest
 import com.xixikitchen.jetpack.data.CoupleNote
 import com.xixikitchen.jetpack.data.CoupleNoteSaveRequest
 import com.xixikitchen.jetpack.data.FoodDiary
@@ -38,6 +40,10 @@ data class DiscoverUiState(
     val anniversaries: List<Anniversary> = emptyList(),
     val meetups: List<CoupleMeetup> = emptyList(),
     val meetupsLoaded: Boolean = false,
+    val moods: List<CoupleMood> = emptyList(),
+    val moodYear: Int = 0,
+    val moodMonth: Int = 0,
+    val moodsLoaded: Boolean = false,
     val diaryEntries: List<FoodDiary> = emptyList(),
     val diaryTotal: Long = 0,
     val diaryPage: Int = 1,
@@ -189,6 +195,25 @@ class DiscoverViewModel @Inject constructor(
         notify("见面记录已删除")
     }
 
+
+    fun refreshMoods(year: Int, month: Int) = runAction {
+        val list = repo.moods(token(), year, month)
+        _state.update {
+            it.copy(moods = list, moodYear = year, moodMonth = month, moodsLoaded = true)
+        }
+    }
+
+    fun saveMood(date: String, moodCode: String, note: String, onSuccess: () -> Unit = {}) = runAction {
+        repo.saveMood(token(), CoupleMoodSaveRequest(moodDate = date, moodCode = moodCode, note = note))
+        val y = _state.value.moodYear
+        val m = _state.value.moodMonth
+        if (y > 0 && m > 0) {
+            val list = repo.moods(token(), y, m)
+            _state.update { it.copy(moods = list) }
+        }
+        onSuccess()
+        notify("心情已记录")
+    }
 
     fun refreshDiary() = runAction {
         val pageData = repo.diaries(token(), page = 1, pageSize = 20)

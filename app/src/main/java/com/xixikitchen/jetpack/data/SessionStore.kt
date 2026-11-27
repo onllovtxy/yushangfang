@@ -63,6 +63,9 @@ class SessionStore(private val context: Context) {
 
     fun sessionSnapshot(): Session = sessionState.value
 
+    /** 给非 Hilt 环境（桌面 widget）读取当前服务器地址用。 */
+    fun backendBaseUrlSnapshot(): String = backendBaseUrlState.value
+
     fun selectedCoupleIdSnapshot(): Long? = selectedCoupleIdState.value
 
     fun setSelectedCoupleId(coupleId: Long?) {

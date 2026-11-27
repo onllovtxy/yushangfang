@@ -276,3 +276,21 @@ data class PartnerPayload(val partnerId: Long?)
 data class CartLine(val dish: Dish, val quantity: Int)
 
 data class UploadResponse(val url: String)
+
+data class CoupleMood(
+    val id: Long = 0,
+    val moodDate: String = "",
+    val userId: Long = 0,
+    val moodCode: String = "calm",
+    val note: String = "",
+    val authorName: String? = null,
+    val authorAvatar: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+
+data class CoupleMoodSaveRequest(
+    val moodDate: String,
+    val moodCode: String,
+    val note: String
+)
