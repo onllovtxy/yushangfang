@@ -82,6 +82,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun XixiKitchenApp(
     vm: KitchenViewModel,
+    initialRoute: String? = null,
     discoverVm: DiscoverViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsState()
@@ -137,6 +138,13 @@ fun XixiKitchenApp(
                 )
             } else {
                 val nav = rememberNavController()
+                // 从桌面 widget 进入时直接落到目标顶层页
+                LaunchedEffect(initialRoute, state.isLoggedIn) {
+                    val target = initialRoute ?: return@LaunchedEffect
+                    if (state.isLoggedIn && target in listOf("kitchen", "orders", "meetupDiary", "discover", "mine")) {
+                        nav.navigateToTopLevel(target)
+                    }
+                }
                 val backStack by nav.currentBackStackEntryAsState()
                 val currentRoute = backStack?.destination?.route ?: "kitchen"
                 val showBottomBar = currentRoute in listOf("kitchen", "orders", "meetupDiary", "discover", "mine")

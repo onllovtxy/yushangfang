@@ -17,11 +17,52 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:theme="@style/AppTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".widget.WidgetPinResultReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".widget.MeetupWidgetProvider"
+            android:exported="false"
+            android:label="见面日记">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_meetup" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.AnniversaryWidgetProvider"
+            android:exported="false"
+            android:label="纪念日">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_anniversary" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.DiaryWidgetProvider"
+            android:exported="false"
+            android:label="美食票根">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_diary" />
+        </receiver>
     </application>
 </manifest>

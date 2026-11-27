@@ -13,7 +13,10 @@ import com.xixikitchen.jetpack.data.FoodDiary
 import com.xixikitchen.jetpack.data.FoodDiaryCommentCreateRequest
 import com.xixikitchen.jetpack.data.FoodDiarySaveRequest
 import com.xixikitchen.jetpack.data.KitchenRepository
+import android.content.Context
 import com.xixikitchen.jetpack.data.User
+import com.xixikitchen.jetpack.widget.WidgetPublish
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -49,7 +52,8 @@ data class DiscoverUiState(
 
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
-    private val repo: KitchenRepository
+    private val repo: KitchenRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
     private val _state = MutableStateFlow(DiscoverUiState())
     val state: StateFlow<DiscoverUiState> = _state.asStateFlow()
@@ -164,6 +168,7 @@ class DiscoverViewModel @Inject constructor(
     fun refreshMeetups() = runAction {
         val list = repo.meetups(token())
         _state.update { it.copy(meetups = list, meetupsLoaded = true) }
+        runCatching { WidgetPublish.publishMeetups(appContext, list, downloadImages = false) }
     }
 
     fun saveMeetup(id: Long?, req: CoupleMeetupSaveRequest, onSuccess: () -> Unit = {}) = runAction {
@@ -174,6 +179,7 @@ class DiscoverViewModel @Inject constructor(
         }
         val list = repo.meetups(token())
         _state.update { it.copy(meetups = list, meetupsLoaded = true) }
+        runCatching { WidgetPublish.publishMeetups(appContext, list, downloadImages = false) }
         onSuccess()
         notify("见面记录已保存")
     }
@@ -182,6 +188,7 @@ class DiscoverViewModel @Inject constructor(
         repo.deleteMeetup(token(), id)
         val list = repo.meetups(token())
         _state.update { it.copy(meetups = list, meetupsLoaded = true) }
+        runCatching { WidgetPublish.publishMeetups(appContext, list, downloadImages = false) }
         notify("见面记录已删除")
     }
 
@@ -196,6 +203,7 @@ class DiscoverViewModel @Inject constructor(
                 diaryLoaded = true
             )
         }
+        runCatching { WidgetPublish.publishDiaries(appContext, pageData.list, downloadImages = false) }
     }
 
     fun loadMoreDiary() {
@@ -237,6 +245,9 @@ class DiscoverViewModel @Inject constructor(
             )
         }
         onSuccess()
+        runCatching {
+            WidgetPublish.publishDiaries(appContext, _state.value.diaryEntries, downloadImages = false)
+        }
         notify("票根已生成")
     }
 
@@ -259,6 +270,9 @@ class DiscoverViewModel @Inject constructor(
                 diaryEntries = current.diaryEntries.filterNot { it.id == diary.id },
                 diaryTotal = if (existed) (current.diaryTotal - 1).coerceAtLeast(0) else current.diaryTotal
             )
+        }
+        runCatching {
+            WidgetPublish.publishDiaries(appContext, _state.value.diaryEntries, downloadImages = false)
         }
         notify("票根已删除")
     }
@@ -310,6 +324,7 @@ class DiscoverViewModel @Inject constructor(
             val notes = notesDeferred.await()
             val anniversaries = annivDeferred.await()
             _state.update { it.copy(notes = notes, anniversaries = anniversaries, notesLoaded = true) }
+            runCatching { WidgetPublish.publishAnniversaries(appContext, anniversaries) }
         }
     }
 

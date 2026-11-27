@@ -87,6 +87,9 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcave
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcaveOverlay
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
+import com.xixikitchen.jetpack.widget.WidgetPinner
+import com.xixikitchen.jetpack.widget.WidgetPublish
+import com.xixikitchen.jetpack.widget.WidgetType
 import com.xixikitchen.jetpack.ui.noRippleCombinedPressable
 import com.xixikitchen.jetpack.ui.noRipplePressable
 import kotlinx.coroutines.Dispatchers
@@ -418,6 +421,27 @@ fun DiscoverScreen(
                             )
                         }
                     }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .noRipplePressable(pressedScale = 0.96f) {
+                                val picked = target
+                                anniversaryActionTarget = null
+                                scope.launch {
+                                    WidgetPublish.publishAnniversaries(context, state.anniversaries)
+                                    WidgetPinner.requestPin(context, WidgetType.Anniversary, picked.id)
+                                }
+                            }
+                            .glassConcaveOverlay(14.dp)
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "添加到桌面",
+                            color = GlassAccent.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -476,6 +500,18 @@ fun DiscoverScreen(
             },
             dismissButton = {
                 Row {
+                    TextButton(
+                        onClick = {
+                            val picked = target
+                            diaryActionTarget = null
+                            scope.launch {
+                                WidgetPublish.publishDiaries(context, state.diaryEntries)
+                                WidgetPinner.requestPin(context, WidgetType.Diary, picked.id)
+                            }
+                        }
+                    ) {
+                        Text("添加到桌面", color = GlassAccent.primary)
+                    }
                     TextButton(onClick = { diaryActionTarget = null }) {
                         Text("取消", color = tokens.textSecondary)
                     }

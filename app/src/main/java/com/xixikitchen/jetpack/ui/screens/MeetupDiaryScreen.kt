@@ -37,6 +37,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,6 +56,11 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcaveOverlay
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
 import com.xixikitchen.jetpack.ui.noRipplePressable
+import com.xixikitchen.jetpack.widget.WidgetPinner
+import com.xixikitchen.jetpack.widget.WidgetPublish
+import com.xixikitchen.jetpack.widget.WidgetType
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +74,8 @@ fun MeetupDiaryScreen(
     fabSignal: Int = 0
 ) {
     val tokens = LocalGlassTokens.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
 
     var showCreateMeetup by remember { mutableStateOf(false) }
@@ -243,6 +251,27 @@ fun MeetupDiaryScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .noRipplePressable(pressedScale = 0.96f) {
+                                val picked = target
+                                meetupActionTarget = null
+                                scope.launch {
+                                    WidgetPublish.publishMeetups(context, state.meetups)
+                                    WidgetPinner.requestPin(context, WidgetType.Meetup, picked.id)
+                                }
+                            }
+                            .glassConcaveOverlay(14.dp)
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "添加到桌面",
+                            color = GlassAccent.primary,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             },
