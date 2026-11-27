@@ -27,15 +27,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,7 +43,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +58,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,6 +81,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -699,67 +699,255 @@ internal fun MeetupEditorDialog(
     )
 
     if (showRangePicker) {
-        val rangeState = rememberDateRangePickerState(
-            initialSelectedStartDateMillis = parseMeetupUtcMillis(arriveDate),
-            initialSelectedEndDateMillis = parseMeetupUtcMillis(leaveDate)
-        )
-        DatePickerDialog(
-            onDismissRequest = { showRangePicker = false },
-            shape = RoundedCornerShape(24.dp),
-            colors = DatePickerDefaults.colors(containerColor = Color.Transparent),
-            modifier = Modifier.glassConvexOverlay(24.dp),
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val startMillis = rangeState.selectedStartDateMillis
-                        val endMillis = rangeState.selectedEndDateMillis
-                        if (startMillis != null) {
-                            arriveDate = formatMeetupUtcMillis(startMillis)
-                            leaveDate = formatMeetupUtcMillis(endMillis ?: startMillis)
-                        }
-                        showRangePicker = false
-                    },
-                    enabled = rangeState.selectedStartDateMillis != null,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
-                ) {
-                    Text("确定", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRangePicker = false }) {
-                    Text("取消", color = tokens.textSecondary)
-                }
+        MeetupRangePickerDialog(
+            initialArrive = arriveDate,
+            initialLeave = leaveDate,
+            onDismiss = { showRangePicker = false },
+            onConfirm = { start, end ->
+                arriveDate = start
+                leaveDate = end
+                showRangePicker = false
             }
-        ) {
-            DateRangePicker(
-                state = rangeState,
-                modifier = Modifier.height(420.dp),
-                title = {
+        )
+    }
+}
+
+/** 紧凑版区间日历：只有月份导航 + 星期行 + 6 行日期，整体比系统 DateRangePicker 矮一截。 */
+@Composable
+private fun MeetupRangePickerDialog(
+    initialArrive: String,
+    initialLeave: String,
+    onDismiss: () -> Unit,
+    onConfirm: (arrive: String, leave: String) -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    val initialStart = remember { parseMeetupUtcMillis(initialArrive) }
+    val initialEnd = remember { parseMeetupUtcMillis(initialLeave) }
+    var startMillis by remember { mutableStateOf(initialStart) }
+    var endMillis by remember { mutableStateOf(initialEnd) }
+
+    val anchor = initialStart ?: System.currentTimeMillis()
+    var year by remember { mutableStateOf(meetupUtcYear(anchor)) }
+    var month by remember { mutableStateOf(meetupUtcMonth(anchor)) }
+
+    val todayMillis = remember {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        meetupUtcMillisOf(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
+    }
+    val cells = remember(year, month) { buildMeetupMonthCells(year, month) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier
+            .width(304.dp)
+            .glassConvexOverlay(24.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
+        title = {
+            Text(
+                text = "选择见面区间",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                color = GlassAccent.primaryDark
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // 月份导航
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .noRipplePressable(pressedScale = 0.9f) {
+                                if (month == 0) {
+                                    month = 11
+                                    year -= 1
+                                } else {
+                                    month -= 1
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = "上个月",
+                            tint = GlassAccent.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     Text(
-                        text = "选择见面区间",
-                        modifier = Modifier.padding(start = 24.dp, top = 16.dp),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                        color = GlassAccent.primaryDark
-                    )
-                },
-                headline = {
-                    Text(
-                        text = if (rangeState.selectedStartDateMillis != null && rangeState.selectedEndDateMillis != null) {
-                            "${formatMeetupUtcMillis(rangeState.selectedStartDateMillis!!)} ~ ${formatMeetupUtcMillis(rangeState.selectedEndDateMillis!!)}"
-                        } else {
-                            "点选开始与结束日期"
-                        },
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        text = "${year}年${month + 1}月",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
                         color = tokens.textPrimary
                     )
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .noRipplePressable(pressedScale = 0.9f) {
+                                if (month == 11) {
+                                    month = 0
+                                    year += 1
+                                } else {
+                                    month += 1
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "下个月",
+                            tint = GlassAccent.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // 星期表头（周一开头）
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    listOf("一", "二", "三", "四", "五", "六", "日").forEach { label ->
+                        Text(
+                            text = label,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tokens.textSecondary
+                        )
+                    }
+                }
+
+                // 日期网格
+                cells.chunked(7).forEach { week ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        week.forEach { cell ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (cell != null) {
+                                    val isStart = startMillis == cell.millis
+                                    val isEnd = endMillis == cell.millis
+                                    val inRange = startMillis != null && endMillis != null &&
+                                        cell.millis > startMillis!! && cell.millis < endMillis!!
+                                    Box(
+                                        modifier = Modifier
+                                            .size(30.dp)
+                                            .clip(CircleShape)
+                                            .then(
+                                                when {
+                                                    isStart || isEnd -> Modifier.background(GlassAccent.primary)
+                                                    inRange -> Modifier.background(GlassAccent.washStrong)
+                                                    else -> Modifier
+                                                }
+                                            )
+                                            .noRipplePressable(pressedScale = 0.9f) {
+                                                val s = startMillis
+                                                val e = endMillis
+                                                when {
+                                                    s == null || e != null -> {
+                                                        startMillis = cell.millis
+                                                        endMillis = null
+                                                    }
+                                                    cell.millis < s -> startMillis = cell.millis
+                                                    else -> endMillis = cell.millis
+                                                }
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = cell.day.toString(),
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontWeight = if (isStart || isEnd) FontWeight.ExtraBold else FontWeight.Medium
+                                            ),
+                                            color = when {
+                                                isStart || isEnd -> Color.White
+                                                inRange -> GlassAccent.primaryDark
+                                                cell.millis == todayMillis -> GlassAccent.primary
+                                                else -> tokens.textPrimary
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 已选区间摘要
+                val s = startMillis
+                val e = endMillis
+                Text(
+                    text = if (s == null) {
+                        "点选开始与结束日期"
+                    } else {
+                        val days = ((e ?: s) - s) / 86_400_000L + 1L
+                        "${formatMeetupUtcMillis(s)} → ${formatMeetupUtcMillis(e ?: s)} · $days 天"
+                    },
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = if (s == null) tokens.textSecondary else GlassAccent.primaryDark
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val s = startMillis ?: return@Button
+                    onConfirm(formatMeetupUtcMillis(s), formatMeetupUtcMillis(endMillis ?: s))
                 },
-                showModeToggle = false,
-                colors = DatePickerDefaults.colors(containerColor = Color.Transparent)
-            )
+                enabled = startMillis != null,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
+            ) {
+                Text("确定", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = tokens.textSecondary)
+            }
         }
+    )
+}
+
+private data class MeetupDayCell(val millis: Long, val day: Int)
+
+private fun meetupUtcMillisOf(year: Int, month: Int, day: Int): Long {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    cal.clear()
+    cal.set(year, month, day)
+    return cal.timeInMillis
+}
+
+private fun meetupUtcYear(millis: Long): Int {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    cal.timeInMillis = millis
+    return cal.get(Calendar.YEAR)
+}
+
+private fun meetupUtcMonth(millis: Long): Int {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    cal.timeInMillis = millis
+    return cal.get(Calendar.MONTH)
+}
+
+/** 生成当月格子，周一为每周第一天，前后补 null 对齐 7 列。 */
+private fun buildMeetupMonthCells(year: Int, month: Int): List<MeetupDayCell?> {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    cal.clear()
+    cal.set(year, month, 1)
+    // Calendar.DAY_OF_WEEK: 周日=1 … 周六=7，转成 周一=0 … 周日=6
+    val offset = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
+    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val cells = MutableList<MeetupDayCell?>(offset) { null }
+    for (day in 1..daysInMonth) {
+        cells.add(MeetupDayCell(meetupUtcMillisOf(year, month, day), day))
     }
+    while (cells.size % 7 != 0) cells.add(null)
+    return cells
 }
 
 @Composable
