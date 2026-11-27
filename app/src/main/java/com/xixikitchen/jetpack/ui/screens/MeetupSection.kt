@@ -60,7 +60,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,7 +68,6 @@ import com.xixikitchen.jetpack.data.CoupleMeetup
 import com.xixikitchen.jetpack.data.CoupleMeetupSaveRequest
 import com.xixikitchen.jetpack.ui.DiscoverUiState
 import com.xixikitchen.jetpack.ui.DiscoverViewModel
-import com.xixikitchen.jetpack.ui.components.SwipeRevealBox
 import com.xixikitchen.jetpack.ui.components.realImageUrl
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
 import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
@@ -92,8 +90,7 @@ import java.util.TimeZone
 internal fun MeetupsContent(
     state: DiscoverUiState,
     onAddMeetup: () -> Unit,
-    onMeetupLongClick: (CoupleMeetup) -> Unit,
-    onMeetupDeleteRequest: (CoupleMeetup) -> Unit,
+    onMeetupActionRequest: (CoupleMeetup) -> Unit,
     onPhotoClick: (imageUrl: String, caption: String?) -> Unit
 ) {
     val tokens = LocalGlassTokens.current
@@ -143,12 +140,6 @@ internal fun MeetupsContent(
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
                             color = tokens.textPrimary
                         )
-                        Text(
-                            text = "记下哪天见面、哪天离开，自动统计第几次相聚与分别，还能贴上一两张合照",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = tokens.textSecondary,
-                            textAlign = TextAlign.Center
-                        )
                         Spacer(Modifier.height(2.dp))
                         Button(
                             onClick = onAddMeetup,
@@ -168,16 +159,11 @@ internal fun MeetupsContent(
             }
         } else {
             items(state.meetups, key = { "meetup_${it.id}" }) { item ->
-                SwipeRevealBox(
-                    swipeEnabled = true,
-                    onDeleteClick = { onMeetupDeleteRequest(item) }
-                ) {
-                    MeetupSketchCard(
-                        item = item,
-                        onLongClick = { onMeetupLongClick(item) },
-                        onPhotoClick = onPhotoClick
-                    )
-                }
+                MeetupSketchCard(
+                    item = item,
+                    onLongClick = { onMeetupActionRequest(item) },
+                    onPhotoClick = onPhotoClick
+                )
             }
         }
 
@@ -236,13 +222,15 @@ private fun MeetupSummaryBanner(
             val subHint = when {
                 ongoingMeet != null -> "正在第 ${ongoingMeet.meetIndex} 次甜蜜见面中 🎉"
                 nextUpcoming?.daysUntilMeet != null -> "距离第 ${nextUpcoming.meetIndex} 次见面还有 ${nextUpcoming.daysUntilMeet} 天"
-                else -> "长按卡片可编辑，左滑可删除"
+                else -> null
             }
-            Text(
-                text = subHint,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (ongoingMeet != null || nextUpcoming != null) GlassAccent.primary else tokens.textTertiary
-            )
+            if (subHint != null) {
+                Text(
+                    text = subHint,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = GlassAccent.primary
+                )
+            }
         }
 
         Spacer(Modifier.width(10.dp))
@@ -626,7 +614,7 @@ internal fun MeetupEditorDialog(
                     value = city,
                     onValueChange = { if (it.length <= 60) city = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("见面城市 / 地点（可选）") },
+                    label = { Text("见面城市 / 地点") },
                     placeholder = { Text("例如：杭州 ⇄ 上海") },
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
@@ -640,7 +628,7 @@ internal fun MeetupEditorDialog(
                     value = note,
                     onValueChange = { if (it.length <= 500) note = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("这次见面的文字记录（上半区文字）") },
+                    label = { Text("文字记录") },
                     placeholder = { Text("写下见面那天的心情、一起吃的好吃的、离开时的舍不得...") },
                     shape = RoundedCornerShape(16.dp),
                     minLines = 3,
@@ -652,7 +640,7 @@ internal fun MeetupEditorDialog(
                 )
 
                 Text(
-                    text = "见面照片（下半区展示，可放 1~2 张）",
+                    text = "见面照片",
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                     color = tokens.textSecondary
                 )

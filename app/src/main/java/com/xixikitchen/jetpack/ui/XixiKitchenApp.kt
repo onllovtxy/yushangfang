@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material3.Icon
@@ -72,6 +73,7 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.resolveTheme
 import com.xixikitchen.jetpack.ui.screens.DiscoverScreen
 import com.xixikitchen.jetpack.ui.screens.KitchenScreen
 import com.xixikitchen.jetpack.ui.screens.LoginScreen
+import com.xixikitchen.jetpack.ui.screens.MeetupDiaryScreen
 import com.xixikitchen.jetpack.ui.screens.MineScreen
 import com.xixikitchen.jetpack.ui.screens.OrderDetailScreen
 import com.xixikitchen.jetpack.ui.screens.OrdersScreen
@@ -133,7 +135,7 @@ fun XixiKitchenApp(
                 val nav = rememberNavController()
                 val backStack by nav.currentBackStackEntryAsState()
                 val currentRoute = backStack?.destination?.route ?: "kitchen"
-                val showBottomBar = currentRoute in listOf("kitchen", "orders", "discover", "mine")
+                val showBottomBar = currentRoute in listOf("kitchen", "orders", "meetupDiary", "discover", "mine")
                 Scaffold(
                     snackbarHost = {
                         SnackbarHost(
@@ -167,6 +169,21 @@ fun XixiKitchenApp(
                                     backdropBlur = if (currentRoute == "orderDetail/{id}") 28.dp else 0.dp
                                 ) {
                                     OrdersScreen(state, vm, nav)
+                                }
+                            }
+                            composable("meetupDiary") {
+                                TopLevelDestination(
+                                    nav,
+                                    "meetupDiary"
+                                ) {
+                                    MeetupDiaryScreen(
+                                        state = discoverState,
+                                        vm = discoverVm,
+                                        isSuperAdmin = state.isSuperAdmin,
+                                        currentSpace = state.coupleSpace,
+                                        allSpaces = state.allCoupleSpaces,
+                                        onSelectSpace = vm::selectCoupleSpace
+                                    )
                                 }
                             }
                             composable("discover") {
@@ -333,6 +350,7 @@ private fun MainBottomBar(
     val items = listOf(
         Triple("kitchen", "点单", Icons.Default.RestaurantMenu),
         Triple("orders", "订单", Icons.AutoMirrored.Filled.ReceiptLong),
+        Triple("meetupDiary", "日记", Icons.Default.DateRange),
         Triple("discover", "发现", Icons.Default.Explore),
         Triple("mine", "我的", Icons.Default.AccountCircle)
     )
