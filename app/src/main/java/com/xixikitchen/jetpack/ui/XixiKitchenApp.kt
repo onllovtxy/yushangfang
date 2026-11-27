@@ -89,8 +89,9 @@ fun XixiKitchenApp(
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // 重复点击「日记」Tab 时递增，用来重新唤出新建按钮
+    // 重复点击「日记」/「发现」Tab 时递增，用来重新唤出各自的加号按钮
     var meetupFabSignal by remember { mutableStateOf(0) }
+    var discoverFabSignal by remember { mutableStateOf(0) }
 
     val context = LocalContext.current
     val themeStore = remember(context) { ThemeStore(context) }
@@ -194,7 +195,8 @@ fun XixiKitchenApp(
                             composable("discover") {
                                 TopLevelDestination(
                                     nav,
-                                    "discover"
+                                    "discover",
+                                    onTabReselect = { discoverFabSignal += 1 }
                                 ) {
                                     DiscoverScreen(
                                         state = discoverState,
@@ -202,7 +204,8 @@ fun XixiKitchenApp(
                                         isSuperAdmin = state.isSuperAdmin,
                                         currentSpace = state.coupleSpace,
                                         allSpaces = state.allCoupleSpaces,
-                                        onSelectSpace = vm::selectCoupleSpace
+                                        onSelectSpace = vm::selectCoupleSpace,
+                                        fabSignal = discoverFabSignal
                                     )
                                 }
                             }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -64,7 +65,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xixikitchen.jetpack.data.Anniversary
 import com.xixikitchen.jetpack.data.AnniversarySaveRequest
-import com.xixikitchen.jetpack.data.CoupleNote
 import com.xixikitchen.jetpack.data.CoupleSpace
 import com.xixikitchen.jetpack.data.FoodDiary
 import com.xixikitchen.jetpack.data.FoodDiaryComment
@@ -99,7 +99,7 @@ import java.util.TimeZone
 
 private enum class DiscoverSubTab(val label: String) {
     Announcements("公告栏"),
-    Notes("小纸条"),
+    Anniversaries("纪念日"),
     Diary("美食日记")
 }
 
@@ -117,18 +117,14 @@ fun DiscoverScreen(
     isSuperAdmin: Boolean = false,
     currentSpace: CoupleSpace? = null,
     allSpaces: List<CoupleSpace> = emptyList(),
-    onSelectSpace: (Long) -> Unit = {}
+    onSelectSpace: (Long) -> Unit = {},
+    fabSignal: Int = 0
 ) {
     val tokens = LocalGlassTokens.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var subTab by rememberSaveable { mutableStateOf(DiscoverSubTab.Announcements) }
     val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
-
-    var showCreateNote by remember { mutableStateOf(false) }
-    var editingNote by remember { mutableStateOf<CoupleNote?>(null) }
-    var noteActionTarget by remember { mutableStateOf<CoupleNote?>(null) }
-    var deleteNoteTarget by remember { mutableStateOf<CoupleNote?>(null) }
 
     var showCreateAnniversary by remember { mutableStateOf(false) }
     var editingAnniversary by remember { mutableStateOf<Anniversary?>(null) }
@@ -157,10 +153,22 @@ fun DiscoverScreen(
         }
     }
 
+    // 新建按钮：切到「纪念日 / 美食日记」或再点同一 Tab 时出现，5 秒无操作自动隐藏
+    var showAddFab by remember { mutableStateOf(false) }
+    LaunchedEffect(subTab, fabSignal) {
+        showAddFab = subTab != DiscoverSubTab.Announcements
+    }
+    LaunchedEffect(showAddFab) {
+        if (showAddFab) {
+            kotlinx.coroutines.delay(5_000)
+            showAddFab = false
+        }
+    }
+
     LaunchedEffect(subTab) {
         when (subTab) {
             DiscoverSubTab.Announcements -> if (!state.announcementsLoaded) vm.refreshAnnouncements()
-            DiscoverSubTab.Notes -> if (!state.notesLoaded) vm.refreshNotesBoard()
+            DiscoverSubTab.Anniversaries -> if (!state.notesLoaded) vm.refreshNotesBoard()
             DiscoverSubTab.Diary -> if (!state.diaryLoaded) vm.refreshDiary()
         }
     }
@@ -175,7 +183,7 @@ fun DiscoverScreen(
                 startPullRefresh()
                 when (subTab) {
                     DiscoverSubTab.Announcements -> vm.refreshAnnouncements()
-                    DiscoverSubTab.Notes -> vm.refreshNotesBoard()
+                    DiscoverSubTab.Anniversaries -> vm.refreshNotesBoard()
                     DiscoverSubTab.Diary -> vm.refreshDiary()
                 }
             },
@@ -183,10 +191,13 @@ fun DiscoverScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
+            ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
                 if (isSuperAdmin && subTab != DiscoverSubTab.Announcements) {
                     SuperAdminSpaceBanner(
@@ -216,19 +227,14 @@ fun DiscoverScreen(
                 when (subTab) {
                     DiscoverSubTab.Announcements -> AnnouncementsContent(state = state)
 
-                    DiscoverSubTab.Notes -> NotesBoardContent(
+                    DiscoverSubTab.Anniversaries -> AnniversariesContent(
                         state = state,
-                        onAddAnniversary = { showCreateAnniversary = true },
                         onAnniversaryClick = { anniversaryActionTarget = it },
-                        onAnniversaryDeleteRequest = { deleteAnniversaryTarget = it },
-                        onAddNote = { showCreateNote = true },
-                        onNoteLongClick = { noteActionTarget = it },
-                        onNoteDeleteRequest = { deleteNoteTarget = it }
+                        onAnniversaryDeleteRequest = { deleteAnniversaryTarget = it }
                     )
 
                     DiscoverSubTab.Diary -> DiaryContent(
                         state = state,
-                        onCreateTicket = { ticketPicker.launch("image/*") },
                         onImageClick = { lightboxDiary = it },
                         onLongClick = { diaryActionTarget = it },
                         onCommentClick = { diary, replyComment ->
@@ -241,6 +247,48 @@ fun DiscoverScreen(
                         onLoadMore = vm::loadMoreDiary
                     )
                 }
+            }
+
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showAddFab,
+                enter = androidx.compose.animation.fadeIn(
+                    androidx.compose.animation.core.tween(160)
+                ) + androidx.compose.animation.scaleIn(
+                    animationSpec = androidx.compose.animation.core.tween(160),
+                    initialScale = 0.85f
+                ),
+                exit = androidx.compose.animation.fadeOut(
+                    androidx.compose.animation.core.tween(140)
+                ) + androidx.compose.animation.scaleOut(
+                    animationSpec = androidx.compose.animation.core.tween(140),
+                    targetScale = 0.85f
+                ),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 28.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(GlassAccent.primary, CircleShape)
+                        .noRipplePressable(pressedScale = 0.92f) {
+                            showAddFab = false
+                            when (subTab) {
+                                DiscoverSubTab.Anniversaries -> showCreateAnniversary = true
+                                DiscoverSubTab.Diary -> ticketPicker.launch("image/*")
+                                DiscoverSubTab.Announcements -> Unit
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "新建",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
             }
         }
     }
@@ -292,114 +340,6 @@ fun DiscoverScreen(
                     editingDiary = null
                 }
             }
-        )
-    }
-
-    if (showCreateNote || editingNote != null) {
-        NoteEditorDialog(
-            initial = editingNote,
-            onDismiss = {
-                showCreateNote = false
-                editingNote = null
-            },
-            onSave = { content, pinned ->
-                val targetId = editingNote?.id
-                showCreateNote = false
-                editingNote = null
-                vm.saveNote(targetId, content, pinned)
-            }
-        )
-    }
-
-    noteActionTarget?.let { target ->
-        AlertDialog(
-            onDismissRequest = { noteActionTarget = null },
-            modifier = Modifier.glassConvexOverlay(24.dp),
-            shape = RoundedCornerShape(24.dp),
-            containerColor = Color.Transparent,
-            title = {
-                Text(
-                    "小纸条操作",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = GlassAccent.primaryDark
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = target.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = tokens.textSecondary,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .noRipplePressable(pressedScale = 0.96f) {
-                                    noteActionTarget = null
-                                    vm.togglePinNote(target)
-                                }
-                                .glassConcaveOverlay(14.dp)
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (target.pinned) "取消置顶" else "置顶",
-                                color = GlassAccent.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .noRipplePressable(pressedScale = 0.96f) {
-                                    editingNote = target
-                                    noteActionTarget = null
-                                }
-                                .glassConcaveOverlay(14.dp)
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "编辑",
-                                color = tokens.textPrimary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        deleteNoteTarget = target
-                        noteActionTarget = null
-                    }
-                ) {
-                    Text("删除", color = GlassAccent.error, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { noteActionTarget = null }) {
-                    Text("关闭", color = tokens.textSecondary)
-                }
-            }
-        )
-    }
-
-    deleteNoteTarget?.let { target ->
-        ConfirmDeleteDialog(
-            message = "确定要撕掉这张小纸条吗？",
-            onConfirm = {
-                deleteNoteTarget = null
-                vm.deleteNote(target.id)
-            },
-            onDismiss = { deleteNoteTarget = null }
         )
     }
 
@@ -737,52 +677,29 @@ private fun AnnouncementsContent(state: DiscoverUiState) {
 }
 
 @Composable
-private fun NotesBoardContent(
+private fun AnniversariesContent(
     state: DiscoverUiState,
-    onAddAnniversary: () -> Unit,
     onAnniversaryClick: (Anniversary) -> Unit,
-    onAnniversaryDeleteRequest: (Anniversary) -> Unit,
-    onAddNote: () -> Unit,
-    onNoteLongClick: (CoupleNote) -> Unit,
-    onNoteDeleteRequest: (CoupleNote) -> Unit
+    onAnniversaryDeleteRequest: (Anniversary) -> Unit
 ) {
-    val tokens = LocalGlassTokens.current
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item {
-            SectionActionHeader(
-                title = "纪念日",
-                actionLabel = "添加",
-                onAction = onAddAnniversary
-            )
-        }
-
         if (state.anniversaries.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .noRipplePressable(pressedScale = 0.98f, onClick = onAddAnniversary)
                         .glassConcave(18.dp)
                         .padding(horizontal = 16.dp, vertical = 18.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            tint = GlassAccent.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "添加你们的第一个纪念日 / 倒计时",
-                            color = GlassAccent.primary,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
+                    Text(
+                        text = "还没有纪念日",
+                        color = LocalGlassTokens.current.textSecondary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
             }
         } else {
@@ -799,91 +716,7 @@ private fun NotesBoardContent(
             }
         }
 
-        item {
-            Spacer(Modifier.height(4.dp))
-            SectionActionHeader(
-                title = "小纸条",
-                actionLabel = "写纸条",
-                onAction = onAddNote
-            )
-        }
-
-        if (state.notes.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .noRipplePressable(pressedScale = 0.98f, onClick = onAddNote)
-                        .glassConcave(20.dp)
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "冰箱门还空着，贴上第一张小纸条吧~",
-                        color = tokens.textSecondary,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-        } else {
-            items(state.notes, key = { "note_${it.id}" }) { note ->
-                SwipeRevealBox(
-                    swipeEnabled = true,
-                    onDeleteClick = { onNoteDeleteRequest(note) }
-                ) {
-                    FridgeNoteCard(
-                        note = note,
-                        onLongClick = { onNoteLongClick(note) }
-                    )
-                }
-            }
-        }
-
-        item { Spacer(Modifier.height(24.dp)) }
-    }
-}
-
-@Composable
-private fun SectionActionHeader(
-    title: String,
-    actionLabel: String,
-    onAction: () -> Unit
-) {
-    val tokens = LocalGlassTokens.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-            color = tokens.textPrimary
-        )
-        Box(
-            modifier = Modifier
-                .noRipplePressable(pressedScale = 0.94f, onClick = onAction)
-                .glassConvex(14.dp)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    tint = GlassAccent.primary,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = actionLabel,
-                    color = GlassAccent.primary,
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold)
-                )
-            }
-        }
+        item { Spacer(Modifier.height(96.dp)) }
     }
 }
 
@@ -1023,79 +856,8 @@ private fun AnniversaryCard(
 }
 
 @Composable
-private fun FridgeNoteCard(
-    note: CoupleNote,
-    onLongClick: () -> Unit
-) {
-    val tokens = LocalGlassTokens.current
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .noRippleCombinedPressable(
-                pressedScale = 0.985f,
-                onLongClick = onLongClick,
-                onClick = {}
-            )
-            .then(
-                if (note.pinned) {
-                    Modifier.border(BorderStroke(1.dp, GlassAccent.edge), RoundedCornerShape(20.dp))
-                } else {
-                    Modifier
-                }
-            )
-            .glassConvex(20.dp)
-            .padding(16.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    UserMiniAvatar(note.authorAvatar, size = 22.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = note.authorName ?: "小厨房成员",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = tokens.textPrimary
-                    )
-                    if (note.pinned) {
-                        Spacer(Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .background(GlassAccent.wash, RoundedCornerShape(10.dp))
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "置顶",
-                                color = GlassAccent.primary,
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-                    }
-                }
-                Text(
-                    text = (note.updatedAt ?: note.createdAt)?.take(10).orEmpty(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = tokens.textSecondary
-                )
-            }
-
-            Text(
-                text = note.content,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                color = tokens.textPrimary,
-                lineHeight = 22.sp
-            )
-        }
-    }
-}
-
-@Composable
 private fun DiaryContent(
     state: DiscoverUiState,
-    onCreateTicket: () -> Unit,
     onImageClick: (FoodDiary) -> Unit,
     onLongClick: (FoodDiary) -> Unit,
     onCommentClick: (FoodDiary, FoodDiaryComment?) -> Unit,
@@ -1105,14 +867,6 @@ private fun DiaryContent(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            SectionActionHeader(
-                title = "美食票根",
-                actionLabel = "制作票根",
-                onAction = onCreateTicket
-            )
-        }
-
         if (state.diaryEntries.isEmpty() && !state.loading) {
             // 没有票根时留空，创建入口在右上角「制作票根」
         } else {
@@ -1158,7 +912,7 @@ private fun DiaryContent(
             }
         }
 
-        item { Spacer(Modifier.height(24.dp)) }
+        item { Spacer(Modifier.height(96.dp)) }
     }
 }
 
@@ -1314,67 +1068,6 @@ private fun DiaryCommentDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
             ) {
                 Text("发送", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消", color = tokens.textSecondary)
-            }
-        }
-    )
-}
-
-@Composable
-private fun NoteEditorDialog(
-    initial: CoupleNote?,
-    onDismiss: () -> Unit,
-    onSave: (String, Boolean) -> Unit
-) {
-    val tokens = LocalGlassTokens.current
-    var content by remember { mutableStateOf(initial?.content ?: "") }
-    var pinned by remember { mutableStateOf(initial?.pinned ?: false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = Modifier.glassConvexOverlay(24.dp),
-        shape = RoundedCornerShape(24.dp),
-        containerColor = Color.Transparent,
-        title = {
-            Text(
-                if (initial == null) "贴一张小纸条" else "编辑小纸条",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                color = GlassAccent.primaryDark
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = content,
-                    onValueChange = { if (it.length <= 500) content = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("小纸条内容") },
-                    shape = RoundedCornerShape(16.dp),
-                    minLines = 4,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GlassAccent.primary,
-                        focusedLabelColor = GlassAccent.primary
-                    )
-                )
-                TogglePillRow(
-                    label = "置顶到顶部",
-                    checked = pinned,
-                    onToggle = { pinned = !pinned }
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSave(content.trim(), pinned) },
-                enabled = content.trim().isNotEmpty(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
-            ) {
-                Text("保存", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
