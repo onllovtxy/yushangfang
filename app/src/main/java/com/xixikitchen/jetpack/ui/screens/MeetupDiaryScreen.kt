@@ -45,6 +45,10 @@ import com.xixikitchen.jetpack.data.CoupleMeetup
 import com.xixikitchen.jetpack.data.CoupleSpace
 import com.xixikitchen.jetpack.ui.DiscoverUiState
 import com.xixikitchen.jetpack.ui.DiscoverViewModel
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.runtime.rememberCoroutineScope
+import com.xixikitchen.jetpack.ui.components.CardImageExporter
 import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
 import com.xixikitchen.jetpack.ui.components.PhotoLightboxDialog
 import com.xixikitchen.jetpack.ui.components.SuperAdminSpaceBanner
@@ -56,11 +60,11 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcaveOverlay
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
 import com.xixikitchen.jetpack.ui.noRipplePressable
-import com.xixikitchen.jetpack.widget.WidgetPinner
-import com.xixikitchen.jetpack.widget.WidgetPublish
-import com.xixikitchen.jetpack.widget.WidgetType
-import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +81,35 @@ fun MeetupDiaryScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
+
+    val onSaveImage: (CoupleMeetup) -> Unit = remember(context, state.meetups) {
+        { meetup ->
+            scope.launch {
+                val photos = withContext(Dispatchers.IO) {
+                    listOf(meetup.photoUrl1, meetup.photoUrl2)
+                        .filter { it.isNotBlank() }
+                        .mapNotNull { loadBitmap(it) }
+                }
+                val bitmap = withContext(Dispatchers.Default) {
+                    CardImageExporter.renderMeetup(context, meetup, photos)
+                }
+                val saved = withContext(Dispatchers.IO) {
+                    CardImageExporter.saveToGallery(
+                        context,
+                        bitmap,
+                        "见面_第${meetup.meetIndex}次_${meetup.arriveDate}"
+                    )
+                }
+                photos.forEach { it.recycle() }
+                bitmap.recycle()
+                android.widget.Toast.makeText(
+                    context,
+                    if (saved) "已保存到相册" else "保存失败，请检查存储空间",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
 
     var showCreateMeetup by remember { mutableStateOf(false) }
     var editingMeetup by remember { mutableStateOf<CoupleMeetup?>(null) }
@@ -256,19 +289,15 @@ fun MeetupDiaryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .noRipplePressable(pressedScale = 0.96f) {
-                                val picked = target
                                 meetupActionTarget = null
-                                scope.launch {
-                                    WidgetPublish.publishMeetups(context, state.meetups)
-                                    WidgetPinner.requestPin(context, WidgetType.Meetup, picked.id)
-                                }
+                                onSaveImage(target)
                             }
                             .glassConcaveOverlay(14.dp)
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "添加到桌面",
+                            text = "保存图片到相册",
                             color = GlassAccent.primary,
                             fontWeight = FontWeight.Bold
                         )
@@ -302,4 +331,21 @@ fun MeetupDiaryScreen(
             onDismiss = { meetupLightbox = null }
         )
     }
+}
+
+/** 下载卡片里的照片用于导出；失败直接跳过，不阻塞保存。 */
+private fun loadBitmap(url: String): Bitmap? {
+    val resolved = com.xixikitchen.jetpack.ui.components.realImageUrl(url) ?: return null
+    return runCatching {
+        val conn = (URL(resolved).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            instanceFollowRedirects = true
+        }
+        try {
+            conn.inputStream.use { BitmapFactory.decodeStream(it) }
+        } finally {
+            conn.disconnect()
+        }
+    }.getOrNull()
 }

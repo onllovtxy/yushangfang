@@ -11,7 +11,6 @@ import com.xixikitchen.jetpack.MainActivity
 import com.xixikitchen.jetpack.R
 
 object WidgetLayouts {
-    val layoutMeetup = R.layout.widget_card_meetup
     val layoutAnniversary = R.layout.widget_card_anniversary
     val layoutDiary = R.layout.widget_card_diary
 
@@ -19,7 +18,6 @@ object WidgetLayouts {
     val IMAGE_ID = R.id.widget_image
 
     fun layoutFor(type: WidgetType): Int = when (type) {
-        WidgetType.Meetup -> layoutMeetup
         WidgetType.Anniversary -> layoutAnniversary
         WidgetType.Diary -> layoutDiary
     }
@@ -41,11 +39,7 @@ object WidgetIntents {
         )
     }
 
-    private fun routeFor(type: WidgetType): String = when (type) {
-        WidgetType.Meetup -> "meetupDiary"
-        WidgetType.Anniversary -> "discover"
-        WidgetType.Diary -> "discover"
-    }
+    private fun routeFor(type: WidgetType): String = "discover"
 }
 
 /**
@@ -88,7 +82,6 @@ object WidgetPinner {
     }
 
     fun providerClass(type: WidgetType): Class<*> = when (type) {
-        WidgetType.Meetup -> MeetupWidgetProvider::class.java
         WidgetType.Anniversary -> AnniversaryWidgetProvider::class.java
         WidgetType.Diary -> DiaryWidgetProvider::class.java
     }

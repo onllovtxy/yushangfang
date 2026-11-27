@@ -149,11 +149,32 @@ private fun MeetupSketchCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = item.arriveDate.replace('-', '.'),
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                            color = tokens.textPrimary
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            // 序号圆圈
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .background(GlassAccent.primary, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = item.meetIndex.toString(),
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 11.sp
+                                    )
+                                )
+                            }
+                            Text(
+                                text = item.arriveDate.replace('-', '.'),
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                color = tokens.textPrimary
+                            )
+                        }
                         if (item.city.isNotBlank()) {
                             Text(
                                 text = "📍 ${item.city}",

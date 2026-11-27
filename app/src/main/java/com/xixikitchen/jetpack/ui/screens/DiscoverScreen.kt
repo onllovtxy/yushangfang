@@ -70,6 +70,7 @@ import com.xixikitchen.jetpack.data.FoodDiary
 import com.xixikitchen.jetpack.data.FoodDiaryComment
 import com.xixikitchen.jetpack.ui.DiscoverUiState
 import com.xixikitchen.jetpack.ui.DiscoverViewModel
+import com.xixikitchen.jetpack.ui.components.CardImageExporter
 import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
 import com.xixikitchen.jetpack.ui.components.CropAspectRatio
 import com.xixikitchen.jetpack.ui.components.ImageCropperDialog
@@ -87,9 +88,6 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcave
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcaveOverlay
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
-import com.xixikitchen.jetpack.widget.WidgetPinner
-import com.xixikitchen.jetpack.widget.WidgetPublish
-import com.xixikitchen.jetpack.widget.WidgetType
 import com.xixikitchen.jetpack.ui.noRippleCombinedPressable
 import com.xixikitchen.jetpack.ui.noRipplePressable
 import kotlinx.coroutines.Dispatchers
@@ -143,6 +141,31 @@ fun DiscoverScreen(
     var lightboxDiary by remember { mutableStateOf<FoodDiary?>(null) }
     var commentTarget by remember { mutableStateOf<Pair<FoodDiary, FoodDiaryComment?>?>(null) }
     var commentActionTarget by remember { mutableStateOf<Pair<FoodDiary, FoodDiaryComment>?>(null) }
+
+    val onSaveDiaryImage: (FoodDiary) -> Unit = remember(context, state.diaryEntries) {
+        { diary ->
+            scope.launch {
+                val photo = withContext(Dispatchers.IO) { loadCardPhoto(diary.imageUrl) }
+                val bitmap = withContext(Dispatchers.Default) {
+                    CardImageExporter.renderDiary(context, diary, photo)
+                }
+                val saved = withContext(Dispatchers.IO) {
+                    CardImageExporter.saveToGallery(
+                        context,
+                        bitmap,
+                        "票根_${diary.title.ifBlank { "美食" }}_${diary.createdAt?.take(10) ?: ""}"
+                    )
+                }
+                photo?.recycle()
+                bitmap.recycle()
+                android.widget.Toast.makeText(
+                    context,
+                    if (saved) "已保存到相册" else "保存失败，请检查存储空间",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
 
     val ticketPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -421,27 +444,6 @@ fun DiscoverScreen(
                             )
                         }
                     }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .noRipplePressable(pressedScale = 0.96f) {
-                                val picked = target
-                                anniversaryActionTarget = null
-                                scope.launch {
-                                    WidgetPublish.publishAnniversaries(context, state.anniversaries)
-                                    WidgetPinner.requestPin(context, WidgetType.Anniversary, picked.id)
-                                }
-                            }
-                            .glassConcaveOverlay(14.dp)
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "添加到桌面",
-                            color = GlassAccent.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
                 }
             },
             confirmButton = {
@@ -502,15 +504,11 @@ fun DiscoverScreen(
                 Row {
                     TextButton(
                         onClick = {
-                            val picked = target
                             diaryActionTarget = null
-                            scope.launch {
-                                WidgetPublish.publishDiaries(context, state.diaryEntries)
-                                WidgetPinner.requestPin(context, WidgetType.Diary, picked.id)
-                            }
+                            onSaveDiaryImage(target)
                         }
                     ) {
-                        Text("添加到桌面", color = GlassAccent.primary)
+                        Text("保存图片", color = GlassAccent.primary)
                     }
                     TextButton(onClick = { diaryActionTarget = null }) {
                         Text("取消", color = tokens.textSecondary)
@@ -1369,4 +1367,21 @@ private fun formatUtcDateMillis(millis: Long): String {
         timeZone = TimeZone.getTimeZone("UTC")
     }
     return sdf.format(Date(millis))
+}
+
+/** 下载票根图片用于导出；失败返回 null，仍然能导出文字版票根。 */
+private fun loadCardPhoto(url: String): android.graphics.Bitmap? {
+    val resolved = com.xixikitchen.jetpack.ui.components.realImageUrl(url) ?: return null
+    return runCatching {
+        val conn = (java.net.URL(resolved).openConnection() as java.net.HttpURLConnection).apply {
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            instanceFollowRedirects = true
+        }
+        try {
+            conn.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
+        } finally {
+            conn.disconnect()
+        }
+    }.getOrNull()
 }

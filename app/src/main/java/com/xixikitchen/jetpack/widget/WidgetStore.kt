@@ -48,7 +48,6 @@ object WidgetStore {
 }
 
 enum class WidgetType(val key: String, val label: String) {
-    Meetup("meetup", "见面日记"),
     Anniversary("anniversary", "纪念日"),
     Diary("diary", "美食票根")
 }

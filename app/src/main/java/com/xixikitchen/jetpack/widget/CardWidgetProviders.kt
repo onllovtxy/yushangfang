@@ -47,10 +47,6 @@ abstract class BaseCardWidgetProvider : AppWidgetProvider() {
     }
 }
 
-class MeetupWidgetProvider : BaseCardWidgetProvider() {
-    override val type = WidgetType.Meetup
-}
-
 class AnniversaryWidgetProvider : BaseCardWidgetProvider() {
     override val type = WidgetType.Anniversary
 }
@@ -79,7 +75,7 @@ object WidgetRefresher {
         )
         views.setContentDescription(
             WidgetLayouts.ROOT_ID,
-            card.title + " " + card.subtitle
+            card.title
         )
         views.setOnClickPendingIntent(
             WidgetLayouts.ROOT_ID,
@@ -108,14 +104,12 @@ object WidgetRefresher {
     fun refreshAll(context: Context, type: WidgetType) {
         val manager = AppWidgetManager.getInstance(context)
         val cls = when (type) {
-            WidgetType.Meetup -> MeetupWidgetProvider::class.java
             WidgetType.Anniversary -> AnniversaryWidgetProvider::class.java
             WidgetType.Diary -> DiaryWidgetProvider::class.java
         }
         val ids = manager.getAppWidgetIds(ComponentName(context, cls))
         ids.forEach { id ->
             val provider = when (type) {
-                WidgetType.Meetup -> MeetupWidgetProvider()
                 WidgetType.Anniversary -> AnniversaryWidgetProvider()
                 WidgetType.Diary -> DiaryWidgetProvider()
             }

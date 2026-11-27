@@ -31,7 +31,6 @@ class WidgetPinResultReceiver : BroadcastReceiver() {
             WidgetRefresher.buildViews(
                 context,
                 when (type) {
-                    WidgetType.Meetup -> MeetupWidgetProvider()
                     WidgetType.Anniversary -> AnniversaryWidgetProvider()
                     WidgetType.Diary -> DiaryWidgetProvider()
                 },

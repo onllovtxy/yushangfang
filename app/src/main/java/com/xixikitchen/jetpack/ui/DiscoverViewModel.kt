@@ -168,7 +168,6 @@ class DiscoverViewModel @Inject constructor(
     fun refreshMeetups() = runAction {
         val list = repo.meetups(token())
         _state.update { it.copy(meetups = list, meetupsLoaded = true) }
-        runCatching { WidgetPublish.publishMeetups(appContext, list, downloadImages = false) }
     }
 
     fun saveMeetup(id: Long?, req: CoupleMeetupSaveRequest, onSuccess: () -> Unit = {}) = runAction {
@@ -179,7 +178,6 @@ class DiscoverViewModel @Inject constructor(
         }
         val list = repo.meetups(token())
         _state.update { it.copy(meetups = list, meetupsLoaded = true) }
-        runCatching { WidgetPublish.publishMeetups(appContext, list, downloadImages = false) }
         onSuccess()
         notify("见面记录已保存")
     }
@@ -188,7 +186,6 @@ class DiscoverViewModel @Inject constructor(
         repo.deleteMeetup(token(), id)
         val list = repo.meetups(token())
         _state.update { it.copy(meetups = list, meetupsLoaded = true) }
-        runCatching { WidgetPublish.publishMeetups(appContext, list, downloadImages = false) }
         notify("见面记录已删除")
     }
 

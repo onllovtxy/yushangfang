@@ -41,6 +41,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -82,10 +84,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun XixiKitchenApp(
     vm: KitchenViewModel,
-    initialRoute: String? = null,
+    widgetRoute: StateFlow<String?> = MutableStateFlow(null),
+    onWidgetRouteConsumed: () -> Unit = {},
     discoverVm: DiscoverViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsState()
+    val pendingRoute by widgetRoute.collectAsState()
     val discoverState by discoverVm.state.collectAsState()
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -138,11 +142,14 @@ fun XixiKitchenApp(
                 )
             } else {
                 val nav = rememberNavController()
-                // 从桌面 widget 进入时直接落到目标顶层页
-                LaunchedEffect(initialRoute, state.isLoggedIn) {
-                    val target = initialRoute ?: return@LaunchedEffect
-                    if (state.isLoggedIn && target in listOf("kitchen", "orders", "meetupDiary", "discover", "mine")) {
-                        nav.navigateToTopLevel(target)
+                // 桌面 widget 点击 → 跳到对应顶层页；处理完清空，避免重复触发
+                LaunchedEffect(pendingRoute, state.isLoggedIn) {
+                    val target = pendingRoute ?: return@LaunchedEffect
+                    if (state.isLoggedIn) {
+                        if (target in listOf("kitchen", "orders", "meetupDiary", "discover", "mine")) {
+                            nav.navigateToTopLevel(target)
+                        }
+                        onWidgetRouteConsumed()
                     }
                 }
                 val backStack by nav.currentBackStackEntryAsState()
