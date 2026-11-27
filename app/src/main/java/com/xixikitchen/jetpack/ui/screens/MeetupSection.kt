@@ -292,7 +292,7 @@ private fun MeetupSketchCard(
             .noRippleCombinedPressable(
                 pressedScale = 0.985f,
                 onLongClick = onLongClick,
-                onClick = onLongClick
+                onClick = {}
             )
             .glassConvex(22.dp)
             .padding(16.dp)
