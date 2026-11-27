@@ -1,5 +1,11 @@
 package com.xixikitchen.jetpack.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,8 +13,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -22,11 +33,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.xixikitchen.jetpack.data.CoupleMeetup
 import com.xixikitchen.jetpack.data.CoupleSpace
 import com.xixikitchen.jetpack.ui.DiscoverUiState
@@ -35,8 +48,10 @@ import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
 import com.xixikitchen.jetpack.ui.components.PhotoLightboxDialog
 import com.xixikitchen.jetpack.ui.components.SuperAdminSpaceBanner
 import com.xixikitchen.jetpack.ui.components.rememberPullRefreshState
+import com.xixikitchen.jetpack.ui.designsystem.motion.AppDuration
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
 import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
+import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConcaveOverlay
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvexOverlay
 import com.xixikitchen.jetpack.ui.noRipplePressable
@@ -49,7 +64,8 @@ fun MeetupDiaryScreen(
     isSuperAdmin: Boolean = false,
     currentSpace: CoupleSpace? = null,
     allSpaces: List<CoupleSpace> = emptyList(),
-    onSelectSpace: (Long) -> Unit = {}
+    onSelectSpace: (Long) -> Unit = {},
+    fabSignal: Int = 0
 ) {
     val tokens = LocalGlassTokens.current
     val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
@@ -61,6 +77,18 @@ fun MeetupDiaryScreen(
     var meetupLightbox by remember { mutableStateOf<Pair<String, String?>?>(null) }
 
     LaunchedEffect(Unit) { vm.refreshMeetups() }
+
+    // 新建按钮：进入页面 / 点击日记 Tab 时出现，5 秒无操作自动隐藏
+    var showAddFab by remember { mutableStateOf(true) }
+    LaunchedEffect(fabSignal) {
+        if (fabSignal > 0) showAddFab = true
+    }
+    LaunchedEffect(showAddFab) {
+        if (showAddFab) {
+            kotlinx.coroutines.delay(5_000)
+            showAddFab = false
+        }
+    }
 
     Scaffold(
         modifier = Modifier.statusBarsPadding(),
@@ -90,13 +118,49 @@ fun MeetupDiaryScreen(
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
-                Box(Modifier.fillMaxSize().padding(top = 12.dp)) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = 12.dp)
+                ) {
                     MeetupsContent(
                         state = state,
-                        onAddMeetup = { showCreateMeetup = true },
                         onMeetupActionRequest = { meetupActionTarget = it },
                         onPhotoClick = { url, caption -> meetupLightbox = url to caption }
                     )
+
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showAddFab,
+                        enter = fadeIn(tween(AppDuration.quick)) + scaleIn(
+                            animationSpec = tween(AppDuration.quick),
+                            initialScale = 0.85f
+                        ),
+                        exit = fadeOut(tween(AppDuration.exit)) + scaleOut(
+                            animationSpec = tween(AppDuration.exit),
+                            targetScale = 0.85f
+                        ),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 28.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .background(GlassAccent.primary, CircleShape)
+                                .noRipplePressable(pressedScale = 0.92f) {
+                                    showAddFab = false
+                                    showCreateMeetup = true
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "记一次见面",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

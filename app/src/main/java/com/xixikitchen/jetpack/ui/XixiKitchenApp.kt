@@ -89,6 +89,9 @@ fun XixiKitchenApp(
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    // 重复点击「日记」Tab 时递增，用来重新唤出新建按钮
+    var meetupFabSignal by remember { mutableStateOf(0) }
+
     val context = LocalContext.current
     val themeStore = remember(context) { ThemeStore(context) }
     var themeId by remember { mutableStateOf(themeStore.loadSelection()) }
@@ -174,7 +177,8 @@ fun XixiKitchenApp(
                             composable("meetupDiary") {
                                 TopLevelDestination(
                                     nav,
-                                    "meetupDiary"
+                                    "meetupDiary",
+                                    onTabReselect = { meetupFabSignal += 1 }
                                 ) {
                                     MeetupDiaryScreen(
                                         state = discoverState,
@@ -182,7 +186,8 @@ fun XixiKitchenApp(
                                         isSuperAdmin = state.isSuperAdmin,
                                         currentSpace = state.coupleSpace,
                                         allSpaces = state.allCoupleSpaces,
-                                        onSelectSpace = vm::selectCoupleSpace
+                                        onSelectSpace = vm::selectCoupleSpace,
+                                        fabSignal = meetupFabSignal
                                     )
                                 }
                             }
@@ -274,6 +279,7 @@ private fun TopLevelDestination(
     nav: NavHostController,
     route: String,
     backdropBlur: Dp = 0.dp,
+    onTabReselect: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     Box(
@@ -283,7 +289,7 @@ private fun TopLevelDestination(
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            bottomBar = { MainBottomBar(nav, route) },
+            bottomBar = { MainBottomBar(nav, route, onTabReselect) },
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { padding ->
@@ -344,7 +350,8 @@ internal fun NavHostController.navigateToTopLevel(route: String) {
 @Composable
 private fun MainBottomBar(
     nav: NavHostController,
-    selectedRoute: String
+    selectedRoute: String,
+    onTabReselect: () -> Unit = {}
 ) {
     val tokens = LocalGlassTokens.current
     val items = listOf(
@@ -388,7 +395,10 @@ private fun MainBottomBar(
                         .weight(1f)
                         .fillMaxHeight()
                         .padding(vertical = 8.dp)
-                        .noRipplePressable(pressedScale = 0.94f) { nav.navigateToTopLevel(route) },
+                        .noRipplePressable(pressedScale = 0.94f) {
+                            if (selectedRoute == route) onTabReselect()
+                            nav.navigateToTopLevel(route)
+                        },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {

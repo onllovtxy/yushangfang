@@ -89,174 +89,22 @@ import java.util.TimeZone
 @Composable
 internal fun MeetupsContent(
     state: DiscoverUiState,
-    onAddMeetup: () -> Unit,
     onMeetupActionRequest: (CoupleMeetup) -> Unit,
     onPhotoClick: (imageUrl: String, caption: String?) -> Unit
 ) {
-    val tokens = LocalGlassTokens.current
-    val totalMeets = state.meetups.size
-    val totalStayDays = remember(state.meetups) {
-        state.meetups.sumOf { it.stayDays }
-    }
-    val nextUpcoming = remember(state.meetups) {
-        state.meetups
-            .filter { it.status == "upcoming" && it.daysUntilMeet != null }
-            .minByOrNull { it.daysUntilMeet ?: Long.MAX_VALUE }
-    }
-    val ongoingMeet = remember(state.meetups) {
-        state.meetups.firstOrNull { it.status == "ongoing" }
-    }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item {
-            MeetupSummaryBanner(
-                totalMeets = totalMeets,
-                totalStayDays = totalStayDays,
-                ongoingMeet = ongoingMeet,
-                nextUpcoming = nextUpcoming,
-                onAddMeetup = onAddMeetup
+        items(state.meetups, key = { "meetup_${it.id}" }) { item ->
+            MeetupSketchCard(
+                item = item,
+                onLongClick = { onMeetupActionRequest(item) },
+                onPhotoClick = onPhotoClick
             )
         }
 
-        if (state.meetups.isEmpty() && !state.loading) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .noRipplePressable(pressedScale = 0.985f, onClick = onAddMeetup)
-                        .glassConvex(24.dp)
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "记录你们的每一次见面与分别",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                            color = tokens.textPrimary
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Button(
-                            onClick = onAddMeetup,
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = GlassAccent.primary)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text("记一次见面", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        } else {
-            items(state.meetups, key = { "meetup_${it.id}" }) { item ->
-                MeetupSketchCard(
-                    item = item,
-                    onLongClick = { onMeetupActionRequest(item) },
-                    onPhotoClick = onPhotoClick
-                )
-            }
-        }
-
-        item { Spacer(Modifier.height(24.dp)) }
-    }
-}
-
-@Composable
-private fun MeetupSummaryBanner(
-    totalMeets: Int,
-    totalStayDays: Long,
-    ongoingMeet: CoupleMeetup?,
-    nextUpcoming: CoupleMeetup?,
-    onAddMeetup: () -> Unit
-) {
-    val tokens = LocalGlassTokens.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .glassConcave(18.dp)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = "已记录相见 ",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                    color = tokens.textSecondary
-                )
-                Text(
-                    text = "$totalMeets",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = GlassAccent.primaryDark
-                )
-                Text(
-                    text = " 次 · 共相伴 ",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                    color = tokens.textSecondary
-                )
-                Text(
-                    text = "$totalStayDays",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = GlassAccent.primaryDark
-                )
-                Text(
-                    text = " 天",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                    color = tokens.textSecondary
-                )
-            }
-            val subHint = when {
-                ongoingMeet != null -> "正在第 ${ongoingMeet.meetIndex} 次甜蜜见面中 🎉"
-                nextUpcoming?.daysUntilMeet != null -> "距离第 ${nextUpcoming.meetIndex} 次见面还有 ${nextUpcoming.daysUntilMeet} 天"
-                else -> null
-            }
-            if (subHint != null) {
-                Text(
-                    text = subHint,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = GlassAccent.primary
-                )
-            }
-        }
-
-        Spacer(Modifier.width(10.dp))
-
-        Box(
-            modifier = Modifier
-                .noRipplePressable(pressedScale = 0.94f, onClick = onAddMeetup)
-                .glassConvex(14.dp)
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    tint = GlassAccent.primary,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = "记一次",
-                    color = GlassAccent.primary,
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold)
-                )
-            }
-        }
+        item { Spacer(Modifier.height(96.dp)) }
     }
 }
 
@@ -273,19 +121,6 @@ private fun MeetupSketchCard(
     val photos = remember(item.photoUrl1, item.photoUrl2) {
         listOf(item.photoUrl1, item.photoUrl2).filter { it.isNotBlank() }
     }
-    val farewellLabel = when (item.status) {
-        "ongoing" -> "正在见面中 🎉"
-        "upcoming" -> {
-            val days = item.daysUntilMeet ?: 0L
-            if (days == 0L) "今天见面 🎉" else "还有 $days 天见面"
-        }
-        else -> {
-            val fIdx = item.farewellIndex ?: item.meetIndex
-            val gapSuffix = item.gapDaysFromPrev?.let { " · 时隔 ${it} 天" }.orEmpty()
-            "第 $fIdx 次分别$gapSuffix"
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -301,145 +136,86 @@ private fun MeetupSketchCard(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── 上半区：文字信息区 ──
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                // 顶部徽章：第 N 次见面 + 第 M 次分别
+            // ── 上半区：日期 + 小记 ──
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glassConcave(16.dp)
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .background(GlassAccent.primary, RoundedCornerShape(999.dp))
-                            .padding(horizontal = 11.dp, vertical = 4.dp)
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = "❤️ 第 ${item.meetIndex} 次见面",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold)
+                            text = item.arriveDate.replace('-', '.'),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = tokens.textPrimary
                         )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .background(GlassAccent.wash, RoundedCornerShape(999.dp))
-                            .border(BorderStroke(1.dp, GlassAccent.edge), RoundedCornerShape(999.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = farewellLabel,
-                            color = GlassAccent.primaryDark,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                // 哪一天见面 ── 相伴 X 天 ── 哪一天走
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .glassConcave(16.dp)
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        if (item.city.isNotBlank()) {
                             Text(
-                                text = "哪天见面",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = tokens.textSecondary
-                            )
-                            Text(
-                                text = item.arriveDate.replace('-', '.'),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                color = tokens.textPrimary
-                            )
-                            Text(
-                                text = if (item.city.isNotBlank()) "📍 ${item.city}" else "奔向彼此",
+                                text = "📍 ${item.city}",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = GlassAccent.primaryDark,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
 
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(GlassAccent.washStrong, RoundedCornerShape(999.dp))
+                                .padding(horizontal = 9.dp, vertical = 2.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .background(GlassAccent.washStrong, RoundedCornerShape(999.dp))
-                                    .padding(horizontal = 9.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "相伴 ${item.stayDays} 天",
-                                    color = GlassAccent.primaryDark,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold)
-                                )
-                            }
-                            val dashColor = GlassAccent.primary
-                            Canvas(
-                                modifier = Modifier
-                                    .width(52.dp)
-                                    .height(2.dp)
-                            ) {
-                                drawLine(
-                                    color = dashColor,
-                                    start = Offset(0f, size.height / 2f),
-                                    end = Offset(size.width, size.height / 2f),
-                                    strokeWidth = size.height,
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 7f), 0f)
-                                )
-                            }
+                            Text(
+                                text = "相伴 ${item.stayDays} 天",
+                                color = GlassAccent.primaryDark,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold)
+                            )
                         }
-
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        val dashColor = GlassAccent.primary
+                        Canvas(
+                            modifier = Modifier
+                                .width(52.dp)
+                                .height(2.dp)
                         ) {
-                            Text(
-                                text = "哪天分别",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = tokens.textSecondary
-                            )
-                            Text(
-                                text = item.leaveDate.replace('-', '.'),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                color = tokens.textPrimary
-                            )
-                            Text(
-                                text = when (item.status) {
-                                    "ongoing" -> "舍不得走"
-                                    "upcoming" -> "满心期待"
-                                    else -> "下次再见"
-                                },
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = GlassAccent.primaryDark
+                            drawLine(
+                                color = dashColor,
+                                start = Offset(0f, size.height / 2f),
+                                end = Offset(size.width, size.height / 2f),
+                                strokeWidth = size.height,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 7f), 0f)
                             )
                         }
                     }
-                }
 
-                // 文字小记
-                if (item.note.isNotBlank()) {
                     Text(
-                        text = item.note,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        color = tokens.textPrimary,
-                        lineHeight = 21.sp
+                        text = item.leaveDate.replace('-', '.'),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                        color = tokens.textPrimary
                     )
                 }
             }
 
-            // ── 手稿里的中间分割线 + 下半区照片（1 张大图 / 2 张拍立得同框并排） ──
+            // 文字小记
+            if (item.note.isNotBlank()) {
+                Text(
+                    text = item.note,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = tokens.textPrimary,
+                    lineHeight = 21.sp
+                )
+            }
+
+            // ── 中间分割线 + 下半区照片（1 张大图 / 2 张拍立得同框并排） ──
             if (photos.isNotEmpty()) {
                 HorizontalDivider(
                     thickness = 1.dp,
@@ -447,7 +223,7 @@ private fun MeetupSketchCard(
                 )
 
                 val photoCaption = buildString {
-                    append("第 ${item.meetIndex} 次见面 (${item.arriveDate} ~ ${item.leaveDate})")
+                    append("${item.arriveDate} ~ ${item.leaveDate}")
                     if (item.city.isNotBlank()) append(" · ${item.city}")
                     if (item.note.isNotBlank()) append(" · ${item.note}")
                 }
@@ -455,7 +231,7 @@ private fun MeetupSketchCard(
                 if (photos.size == 1) {
                     MeetupPolaroidPhoto(
                         imageUrl = photos[0],
-                        badge = if (item.city.isNotBlank()) "📍 ${item.city}" else "第 ${item.meetIndex} 次见面",
+                        badge = null,
                         aspectRatio = 4f / 3f,
                         onClick = { onPhotoClick(photos[0], photoCaption) },
                         modifier = Modifier.fillMaxWidth()
@@ -465,10 +241,10 @@ private fun MeetupSketchCard(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        photos.take(2).forEachIndexed { idx, url ->
+                        photos.take(2).forEach { url ->
                             MeetupPolaroidPhoto(
                                 imageUrl = url,
-                                badge = if (idx == 0 && item.city.isNotBlank()) "📍 ${item.city}" else "照片 ${idx + 1}",
+                                badge = null,
                                 aspectRatio = 3f / 4f,
                                 onClick = { onPhotoClick(url, photoCaption) },
                                 modifier = Modifier.weight(1f)
@@ -484,7 +260,7 @@ private fun MeetupSketchCard(
 @Composable
 private fun MeetupPolaroidPhoto(
     imageUrl: String,
-    badge: String,
+    badge: String?,
     aspectRatio: Float,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -510,24 +286,26 @@ private fun MeetupPolaroidPhoto(
         ) {
             AsyncImage(
                 model = resolvedUrl,
-                contentDescription = badge,
+                contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp)
-                    .background(Color.Black.copy(alpha = 0.48f), RoundedCornerShape(999.dp))
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            ) {
-                Text(
-                    text = badge,
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            if (!badge.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.48f), RoundedCornerShape(999.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = badge,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
