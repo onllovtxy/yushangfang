@@ -416,7 +416,6 @@ fun OrderDetailScreen(
                                     UserMiniAvatar(users.fromAvatar)
                                     Spacer(Modifier.height(4.dp))
                                     Text(users.fromName, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = tokens.textPrimary)
-                                    Text("下单人", style = MaterialTheme.typography.labelSmall, color = tokens.textSecondary)
                                 }
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
@@ -428,7 +427,6 @@ fun OrderDetailScreen(
                                     UserMiniAvatar(users.toAvatar)
                                     Spacer(Modifier.height(4.dp))
                                     Text(users.toName, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = tokens.textPrimary)
-                                    Text("烹饪人", style = MaterialTheme.typography.labelSmall, color = tokens.textSecondary)
                                 }
                             }
 
@@ -461,7 +459,7 @@ fun OrderDetailScreen(
                     )
                 }
 
-                items(order.items) { item ->
+                items(order.items, key = { it.dishId }) { item ->
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()

@@ -178,15 +178,10 @@ fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                                 .padding(horizontal = 4.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "已选菜品",
+                                text = "已选 ${state.cartCount} 份",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = tokens.textPrimary
-                            )
-                            Text(
-                                text = "${state.cartCount} 份",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = tokens.textSecondary
                             )
                         }
                         Spacer(Modifier.weight(1f))
@@ -301,7 +296,7 @@ fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                                     .padding(vertical = 8.dp, horizontal = 4.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                items(state.categories) { category ->
+                                items(state.categories, key = { it.id }) { category ->
                                     val active = category.id == state.activeCategoryId
                                     val catTextColor by animateColorAsState(
                                         targetValue = if (active) GlassAccent.primary else tokens.textSecondary,
@@ -347,7 +342,7 @@ fun KitchenScreen(state: KitchenUiState, vm: KitchenViewModel) {
                                         }
                                     }
                                 } else {
-                                    items(displayedDishes) { dish ->
+                                    items(displayedDishes, key = { it.id }) { dish ->
                                         DishCard(dish, onAdd = { vm.addToCart(dish) })
                                     }
                                 }
@@ -478,7 +473,7 @@ private fun CartDialog(
                     modifier = Modifier.height(280.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(cart) { line ->
+                    items(cart, key = { it.dish.id }) { line ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -580,9 +575,9 @@ private fun SubmitOrderDialog(
                     ) {
                         Text(
                             text = if (state.isSuperAdmin) {
-                                "当前情侣空间暂无可接单成员，请先到管理后台为该空间添加或配对成员。"
+                                "暂无可接单成员"
                             } else {
-                                "你当前处于单人空间，请先去「我的」页面输入对方配对码绑定另一半后再下单。"
+                                "请先前往设置绑定伴侣"
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = GlassAccent.errorDeep
@@ -656,7 +651,7 @@ private fun SubmitOrderDialog(
                         value = remark,
                         onValueChange = { remark = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("口味备注/捎句话", color = tokens.textSecondary) },
+                        label = { Text("备注", color = tokens.textSecondary) },
                         shape = RoundedCornerShape(18.dp),
                         maxLines = 3,
                         colors = OutlinedTextFieldDefaults.colors(

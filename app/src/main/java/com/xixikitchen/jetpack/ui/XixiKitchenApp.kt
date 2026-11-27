@@ -188,7 +188,7 @@ fun XixiKitchenApp(
                                 TopLevelDestination(
                                     nav,
                                     "mine",
-                                    backdropBlur = if (currentRoute == "admin") 28.dp else 0.dp
+                                    backdropBlur = if (currentRoute == "admin" || currentRoute == "settings" || currentRoute == "settings/theme") 28.dp else 0.dp
                                 ) {
                                     MineScreen(state, vm, nav)
                                 }
@@ -201,7 +201,10 @@ fun XixiKitchenApp(
                             composable("settings") {
                                 NestedPageSurface {
                                     SettingsScreen(
+                                        state = state,
+                                        vm = vm,
                                         current = resolvedTheme,
+                                        onOpenAdmin = { nav.navigate("admin") },
                                         onOpenThemePicker = { nav.navigate("settings/theme") },
                                         onBack = { nav.popBackStack() }
                                     )

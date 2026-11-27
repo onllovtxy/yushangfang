@@ -252,7 +252,7 @@ private fun RegisterDialog(
                 GlassPasswordField(
                     value = password,
                     onValueChange = { password = it },
-                    label = "密码（至少6位）"
+                    label = "密码"
                 )
                 GlassPasswordField(
                     value = confirmPassword,
@@ -263,7 +263,7 @@ private fun RegisterDialog(
                     value = inviteCode,
                     onValueChange = { inviteCode = it.uppercase() },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("邀请码（向管理员获取）") },
+                    label = { Text("邀请码") },
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     isError = passwordError != null,

@@ -353,12 +353,6 @@ fun ImageCropperDialog(
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "双指缩放或拖动画面，选择票根画幅比例",
-                    color = Color.White.copy(alpha = 0.72f),
-                    style = MaterialTheme.typography.labelMedium
-                )
-
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()

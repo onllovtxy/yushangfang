@@ -522,13 +522,6 @@ fun DiscoverScreen(
                     color = GlassAccent.primaryDark
                 )
             },
-            text = {
-                Text(
-                    "想要编辑或删除这张美食票根吗？",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = tokens.textPrimary
-                )
-            },
             confirmButton = {
                 Button(
                     onClick = {
@@ -1141,11 +1134,6 @@ private fun DiaryContent(
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
                             color = tokens.textPrimary
                         )
-                        Text(
-                            text = "上传一张美食照片，裁切画面并套用旅行票根模板，制作你们的专属美食手帐。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = tokens.textSecondary
-                        )
                         Button(
                             onClick = onCreateTicket,
                             shape = RoundedCornerShape(16.dp),
@@ -1337,7 +1325,7 @@ private fun DiaryCommentDialog(
                 value = text,
                 onValueChange = { if (it.length <= 300) text = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("说点什么（最多300字）") },
+                label = { Text("评论") },
                 shape = RoundedCornerShape(16.dp),
                 minLines = 2,
                 maxLines = 4,
@@ -1393,7 +1381,7 @@ private fun NoteEditorDialog(
                     value = content,
                     onValueChange = { if (it.length <= 500) content = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("写点什么（最多500字）") },
+                    label = { Text("小纸条内容") },
                     shape = RoundedCornerShape(16.dp),
                     minLines = 4,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -1551,7 +1539,7 @@ private fun AnniversaryEditorDialog(
                     value = note,
                     onValueChange = { if (it.length <= 200) note = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("备注（可选）") },
+                    label = { Text("备注") },
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(

@@ -12,6 +12,8 @@ import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.animateTo
+import androidx.compose.foundation.gestures.snapTo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -561,6 +563,7 @@ fun SwipeRevealBox(
     val revealWidth = screenWidthDp / 6f
     val density = LocalDensity.current
     val revealPx = with(density) { revealWidth.toPx() }
+    val scope = rememberCoroutineScope()
     val state = remember(revealPx) {
         AnchoredDraggableState(
             initialValue = RevealValue.Closed,
@@ -570,6 +573,12 @@ fun SwipeRevealBox(
             },
             confirmValueChange = { true }
         )
+    }
+
+    LaunchedEffect(swipeEnabled) {
+        if (!swipeEnabled && state.currentValue != RevealValue.Closed) {
+            state.snapTo(RevealValue.Closed)
+        }
     }
 
     Box(Modifier.fillMaxWidth()) {
@@ -585,7 +594,10 @@ fun SwipeRevealBox(
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(20.dp))
                     .background(GlassAccent.error)
-                    .clickable { onDeleteClick() },
+                    .clickable {
+                        scope.launch { state.animateTo(RevealValue.Closed) }
+                        onDeleteClick()
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Text("删除", color = Color.White, fontWeight = FontWeight.Bold)
@@ -737,11 +749,13 @@ fun DirectImageUploadField(
                 }
             }
         }
-        Text(
-            text = if (uploading) "正在上传..." else "选择后自动上传，无需手动填写地址",
-            style = MaterialTheme.typography.bodySmall,
-            color = if (uploading) GlassAccent.primary else tokens.textSecondary
-        )
+        if (uploading) {
+            Text(
+                text = "正在上传...",
+                style = MaterialTheme.typography.bodySmall,
+                color = GlassAccent.primary
+            )
+        }
     }
 }
 
@@ -831,12 +845,6 @@ fun SuperAdminSpaceBanner(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "超管视角 · 当前情侣空间",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                color = GlassAccent.primary
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
                 text = currentSpace?.name?.takeIf { it.isNotBlank() } ?: "加载中...",
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
                 color = tokens.textPrimary,
@@ -914,7 +922,7 @@ fun SuperAdminSpaceBanner(
                                     )
                                     Spacer(Modifier.height(2.dp))
                                     Text(
-                                        text = "成员: $memberNames · 配对码: ${space.pairCode}",
+                                        text = "成员: $memberNames",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = tokens.textSecondary
                                     )

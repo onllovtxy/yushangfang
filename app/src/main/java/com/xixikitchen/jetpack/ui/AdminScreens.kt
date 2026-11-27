@@ -317,18 +317,6 @@ private fun AdminConsoleHeader(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
                 )
             }
-
-            Box(
-                modifier = Modifier
-                    .glassConcave(14.dp)
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
-            ) {
-                Text(
-                    text = if (isSuperAdmin) "超级管理员" else "本空间共管",
-                    color = GlassAccent.primary,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
-                )
-            }
         }
     }
 }
@@ -375,7 +363,7 @@ private fun CategoryAdminList(items: List<Category>, onEdit: (Category) -> Unit,
         AdminEmptyState("暂无分类数据")
     } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(items) { item ->
+            items(items, key = { it.id }) { item ->
                 AdminCard(
                     title = item.name,
                     onEdit = { onEdit(item) },
@@ -404,7 +392,7 @@ private fun DishAdminList(
                 contentPadding = PaddingValues(bottom = 12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(categories) { category ->
+                items(categories, key = { it.id }) { category ->
                     val active = category.id == activeCategoryId
                     val chipTextColor by animateColorAsState(
                         targetValue = if (active) GlassAccent.primary else tokens.textPrimary,
@@ -442,7 +430,7 @@ private fun DishAdminList(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f).fillMaxWidth()
             ) {
-                items(items) { item ->
+                items(items, key = { it.id }) { item ->
                     AdminCard(
                         title = item.name,
                         onEdit = { onEdit(item) },
@@ -461,7 +449,7 @@ private fun AnnouncementAdminList(items: List<Announcement>, onEdit: (Announceme
         AdminEmptyState("暂无公告数据")
     } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(items) { item ->
+            items(items, key = { it.id }) { item ->
                 AdminCard(
                     title = if (item.pinned) "[置顶] ${item.content}" else item.content,
                     onEdit = { onEdit(item) },
@@ -488,10 +476,11 @@ private fun UserAdminList(
         AdminEmptyState("暂无用户数据")
     } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(users) { user ->
+            items(users, key = { it.id }) { user ->
                 val isNewlyAddedUser = user.id > 2L && user.nickname != "熙熙" && user.nickname != "哥哥"
                 val tokens = LocalGlassTokens.current
                 var showDeleteConfirm by remember { mutableStateOf(false) }
+                val partnerName = users.firstOrNull { it.id == user.partnerId }?.nickname
 
                 SwipeRevealBox(
                     swipeEnabled = isNewlyAddedUser,
@@ -519,19 +508,12 @@ private fun UserAdminList(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    user.nickname ?: "未命名用户",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = tokens.textPrimary
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    "角色: ${user.role}  ·  空间 #${user.coupleId ?: "-"}  ·  伴侣: ${users.firstOrNull { it.id == user.partnerId }?.nickname ?: "未配对"}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = tokens.textSecondary
-                                )
-                            }
+                            Text(
+                                user.nickname ?: "未命名用户",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = tokens.textPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
                             if (isNewlyAddedUser) {
                                 Spacer(Modifier.width(10.dp))
                                 Box(
@@ -541,7 +523,7 @@ private fun UserAdminList(
                                         .padding(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Text(
-                                        text = "配对",
+                                        text = if (partnerName != null) "伴侣: $partnerName" else "配对",
                                         color = GlassAccent.primaryDark,
                                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                                     )
@@ -573,7 +555,7 @@ private fun OrderAdminList(items: List<Order>, onDelete: (Long) -> Unit) {
         AdminEmptyState("暂无订单数据")
     } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(items) { item ->
+            items(items, key = { it.id }) { item ->
                 AdminCard(
                     title = "订单号: ${item.orderNo}",
                     onEdit = null,
@@ -754,7 +736,7 @@ private fun DishEditorDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(categories) { category ->
+                    items(categories, key = { it.id }) { category ->
                         val isSelected = categoryId == category.id
                         Box(
                             modifier = Modifier
@@ -924,7 +906,7 @@ private fun UserEditorDialog(
                     value = password,
                     onValueChange = { password = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(if (user == null) "密码" else "新密码（空表示不修改）") },
+                    label = { Text(if (user == null) "密码" else "新密码") },
                     visualTransformation = PasswordVisualTransformation(),
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
@@ -1104,7 +1086,7 @@ private fun InviteCodeAdminList(
                             )
                         }
                         Text(
-                            text = "${item.note.ifBlank { "无备注" }} · $usageLabel",
+                            text = if (item.note.isNotBlank()) "${item.note} · $usageLabel" else usageLabel,
                             style = MaterialTheme.typography.bodySmall,
                             color = tokens.textSecondary
                         )
@@ -1171,7 +1153,7 @@ private fun InviteCodeEditorDialog(
                     value = code,
                     onValueChange = { code = it.uppercase().take(32) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("邀请码（留空自动生成8位）") },
+                    label = { Text("邀请码") },
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
@@ -1183,7 +1165,7 @@ private fun InviteCodeEditorDialog(
                     value = note,
                     onValueChange = { note = it.take(100) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("备注（如：发给朋友小王）") },
+                    label = { Text("备注") },
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
@@ -1195,7 +1177,7 @@ private fun InviteCodeEditorDialog(
                     value = maxUses,
                     onValueChange = { maxUses = it.filter { ch -> ch.isDigit() }.take(5) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("最大可用次数（0 表示不限）") },
+                    label = { Text("最大可用次数") },
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(

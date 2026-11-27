@@ -190,7 +190,7 @@ fun CustomThemeDialog(
                 // ── 对角专属:角度 + 每段比例 ──
                 if (kind.isDiagonal) {
                     Text(
-                        text = "角度（0° 从上往下，顺时针为正）",
+                        text = "角度",
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                         color = tokens.textSecondary
                     )
@@ -208,7 +208,7 @@ fun CustomThemeDialog(
 
                     if (gapCount > 0) {
                         Text(
-                            text = "色值之间的距离（相对值，会自动归一化）",
+                            text = "色值间距",
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                             color = tokens.textSecondary
                         )

@@ -354,12 +354,6 @@ fun TicketCreatorDialog(
                                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold),
                                     maxLines = 1
                                 )
-                                Text(
-                                    text = item.subtitle,
-                                    color = tokens.textSecondary,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1
-                                )
                             }
                         }
                     }
@@ -430,7 +424,7 @@ fun TicketCreatorDialog(
                                 value = content,
                                 onValueChange = { if (it.length <= 500) content = it },
                                 modifier = Modifier.fillMaxWidth(),
-                                label = { Text("票根小记（可选）") },
+                                label = { Text("票根小记") },
                                 shape = RoundedCornerShape(14.dp),
                                 minLines = 3,
                                 maxLines = 5,
