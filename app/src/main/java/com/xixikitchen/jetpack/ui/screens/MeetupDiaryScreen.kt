@@ -119,6 +119,10 @@ fun MeetupDiaryScreen(
     }
 
     var subTab by rememberSaveable { mutableStateOf(DiaryTab.Meetup) }
+    // 心情日历当前显示的年月（1 基月份），提升到屏幕层是为了让下拉刷新能重拉同一页
+    val todayCal = remember { java.util.Calendar.getInstance() }
+    var moodYear by remember { mutableStateOf(todayCal.get(java.util.Calendar.YEAR)) }
+    var moodMonth by remember { mutableStateOf(todayCal.get(java.util.Calendar.MONTH) + 1) }
     var showCreateMeetup by remember { mutableStateOf(false) }
     var editingMeetup by remember { mutableStateOf<CoupleMeetup?>(null) }
     var meetupActionTarget by remember { mutableStateOf<CoupleMeetup?>(null) }
@@ -152,7 +156,12 @@ fun MeetupDiaryScreen(
             isRefreshing = isPullRefreshing,
             onRefresh = {
                 startPullRefresh()
-                vm.refreshMeetups()
+                when (subTab) {
+                    DiaryTab.Meetup -> vm.refreshMeetups()
+                    // 心情按年月拉取，下拉时要重拉当前显示的那个月，
+                    // 否则在「每日心情」下拉永远看不到对方刚记的心情。
+                    DiaryTab.Mood -> vm.refreshMoods(moodYear, moodMonth)
+                }
             },
             modifier = Modifier
                 .padding(padding)
@@ -216,9 +225,16 @@ fun MeetupDiaryScreen(
                         )
                         DiaryTab.Mood -> MoodsContent(
                             state = state,
-                            currentUserId = state.currentUser?.id ?: 0L,
-                            partnerId = state.currentUser?.partnerId,
+                            currentUserId = state.myUserId,
+                            // 优先用空间成员里的真实伴侣 id，登录快照可能已过期
+                            partnerId = state.partnerUserId ?: state.currentUser?.partnerId,
+                            year = moodYear,
+                            month = moodMonth,
                             onLoadMonth = { y, m -> vm.refreshMoods(y, m) },
+                            onMonthChange = { y, m ->
+                                moodYear = y
+                                moodMonth = m
+                            },
                             onSaveMood = { date, code, note ->
                                 vm.saveMood(date, code, note)
                             }

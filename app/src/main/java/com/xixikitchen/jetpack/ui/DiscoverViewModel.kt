@@ -49,11 +49,17 @@ data class DiscoverUiState(
     val diaryPage: Int = 1,
     val diaryLoaded: Boolean = false,
     val loadingMoreDiary: Boolean = false,
-    val currentUser: User? = null
+    val currentUser: User? = null,
+    // 当前情侣空间里除自己以外的成员 id。来自 /api/couple/me 的实时数据，
+    // 比登录时缓存的 session.user.partnerId 可靠（配对可能发生在登录之后）。
+    val partnerUserId: Long? = null
 ) {
     val loading: Boolean get() = activeRequests > 0
     val isAdmin: Boolean get() = currentUser?.role == "admin" || currentUser?.role == "super_admin"
     val isSuperAdmin: Boolean get() = currentUser?.role == "super_admin"
+
+    /** 日历里"我"的 id：优先用空间成员信息，拿不到才退回登录快照。 */
+    val myUserId: Long get() = currentUser?.id ?: 0L
 }
 
 @HiltViewModel
@@ -99,7 +105,13 @@ class DiscoverViewModel @Inject constructor(
                         diaryEntries = emptyList(),
                         diaryTotal = 0,
                         diaryPage = 1,
-                        diaryLoaded = false
+                        diaryLoaded = false,
+                        // 空间换了，伴侣也随之改变，下次拉心情时会重新解析
+                        partnerUserId = null,
+                        moods = emptyList(),
+                        moodYear = 0,
+                        moodMonth = 0,
+                        moodsLoaded = false
                     )
                 }
                 if (currentToken.isNotBlank()) {
@@ -197,6 +209,11 @@ class DiscoverViewModel @Inject constructor(
 
 
     fun refreshMoods(year: Int, month: Int) = runAction {
+        // 先确认当前空间成员：日历要靠 userId 区分"我"和"TA"。
+        // 登录快照里的 partnerId 可能是配对之前的旧值，所以每次都向服务端取最新的。
+        runCatching { repo.coupleSpace(token()) }.getOrNull()?.let { space ->
+            _state.update { it.copy(partnerUserId = space.partner?.id) }
+        }
         val list = repo.moods(token(), year, month)
         _state.update {
             it.copy(moods = list, moodYear = year, moodMonth = month, moodsLoaded = true)
@@ -209,8 +226,12 @@ class DiscoverViewModel @Inject constructor(
             CoupleMoodSaveRequest(moodDate = date, moodCode = moodCode, note = note)
         )
         _state.update { current ->
-            // 乐观更新：把保存返回的 mood 塞进列表，避免重新拉取覆盖后丢失
-            val merged = (current.moods.filter { it.moodDate != date } + saved).sortedBy { it.moodDate }
+            // 只替换"我"在这一天的记录。同一格里还要放伴侣的心情，
+            // 按日期整体覆盖会把对方当天的记录一起删掉。
+            val others = current.moods.filterNot {
+                it.moodDate == date && it.userId == saved.userId
+            }
+            val merged = (others + saved).sortedBy { it.moodDate }
             current.copy(moods = merged)
         }
         onSuccess()

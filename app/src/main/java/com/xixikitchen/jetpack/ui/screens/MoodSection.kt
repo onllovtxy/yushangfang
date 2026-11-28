@@ -91,23 +91,27 @@ internal fun MoodsContent(
     state: DiscoverUiState,
     currentUserId: Long,
     partnerId: Long?,
+    year: Int,
+    month: Int,
     onLoadMonth: (year: Int, month: Int) -> Unit,
+    onMonthChange: (year: Int, month: Int) -> Unit,
     onSaveMood: (date: String, code: String, note: String) -> Unit
 ) {
     val tokens = LocalGlassTokens.current
-    val now = remember { Calendar.getInstance() }
-    var year by remember { mutableStateOf(now.get(Calendar.YEAR)) }
-    var month by remember { mutableStateOf(now.get(Calendar.MONTH)) }
     var editingDate by remember { mutableStateOf<String?>(null) }
 
-    // Calendar.MONTH 是 0 基，接口与后端 LocalDate.of 都要 1 基，这里必须 +1
-    LaunchedEffect(year, month) { onLoadMonth(year, month + 1) }
+    // month 由外部按 1 基传入；接口和后端 LocalDate.of 也都要 1 基，直接透传
+    LaunchedEffect(year, month) { onLoadMonth(year, month) }
 
+    // 「我」永远是方形、「TA」永远是圆形，两者按 userId 固定绑定，不随列表顺序变化。
     val mine = remember(state.moods, currentUserId) {
-        state.moods.filter { it.userId == currentUserId }.associateBy { it.moodDate }
+        if (currentUserId <= 0L) emptyMap()
+        else state.moods.filter { it.userId == currentUserId }.associateBy { it.moodDate }
     }
-    val theirs = remember(state.moods, partnerId, currentUserId) {
-        state.moods.filter { it.userId != currentUserId }.associateBy { it.moodDate }
+    val theirs = remember(state.moods, partnerId) {
+        // 只取伴侣的记录：不能写成 "userId != 我"，否则同空间的第三个人也会混进来。
+        if (partnerId == null) emptyMap()
+        else state.moods.filter { it.userId == partnerId }.associateBy { it.moodDate }
     }
 
     LazyColumn(
@@ -126,9 +130,9 @@ internal fun MoodsContent(
                         modifier = Modifier
                             .size(32.dp)
                             .noRipplePressable(pressedScale = 0.9f) {
-                                if (month == 0) {
-                                    month = 11; year -= 1
-                                } else month -= 1
+                                if (month == 1) {
+                                    onMonthChange(year - 1, 12)
+                                } else onMonthChange(year, month - 1)
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -138,7 +142,7 @@ internal fun MoodsContent(
                         )
                     }
                     Text(
-                        text = "${year}年${month + 1}月",
+                        text = "${year}年${month}月",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
                         color = tokens.textPrimary
                     )
@@ -146,9 +150,9 @@ internal fun MoodsContent(
                         modifier = Modifier
                             .size(32.dp)
                             .noRipplePressable(pressedScale = 0.9f) {
-                                if (month == 11) {
-                                    month = 0; year += 1
-                                } else month += 1
+                                if (month == 12) {
+                                    onMonthChange(year + 1, 1)
+                                } else onMonthChange(year, month + 1)
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -189,6 +193,16 @@ internal fun MoodsContent(
                         color = tokens.textSecondary
                     )
                 }
+
+                if (partnerId == null) {
+                    Text(
+                        text = "还没有绑定伴侣，绑定后这里会显示 TA 的心情",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = tokens.textSecondary,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
 
@@ -202,7 +216,6 @@ internal fun MoodsContent(
                 onPickDate = { editingDate = it }
             )
         }
-
         item { Spacer(Modifier.height(24.dp)) }
     }
 
@@ -268,7 +281,7 @@ private fun MoodMonthGrid(
                         if (day == null) {
                             Spacer(Modifier.height(64.dp))
                         } else {
-                            val dateKey = "%04d-%02d-%02d".format(year, month + 1, day)
+                            val dateKey = "%04d-%02d-%02d".format(year, month, day)
                             MoodDayCell(
                                 day = day,
                                 isToday = dateKey == today,
@@ -484,11 +497,11 @@ private fun MoodEditorDialog(
     )
 }
 
-/** 生成当月格子，周一为每周第一天，前后补 null 对齐 7 列。 */
+/** 生成当月格子，周一为每周第一天，前后补 null 对齐 7 列。month 为 1 基。 */
 private fun buildMoodCells(year: Int, month: Int): List<Int?> {
     val cal = Calendar.getInstance()
     cal.clear()
-    cal.set(year, month, 1)
+    cal.set(year, month - 1, 1)
     val offset = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
     val days = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
     val cells = MutableList<Int?>(offset) { null }
