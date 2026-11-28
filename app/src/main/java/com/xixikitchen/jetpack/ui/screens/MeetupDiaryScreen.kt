@@ -100,14 +100,26 @@ fun MeetupDiaryScreen(
                 }
                 // 复用界面上那张卡片的同一套 Compose，导出结果和所见一致
                 val bitmap = withContext(Dispatchers.Main) {
-                    ComposeCardRenderer.renderToBitmap(context, 1080) {
-                        MeetupSketchCard(
-                            item = meetup,
-                            onLongClick = {},
-                            onPhotoClick = { _, _ -> },
-                            previewBitmaps = photos
-                        )
-                    }
+                    runCatching {
+                        ComposeCardRenderer.renderToBitmap(context, 1080) {
+                            MeetupSketchCard(
+                                item = meetup,
+                                onLongClick = {},
+                                onPhotoClick = { _, _ -> },
+                                previewBitmaps = photos
+                            )
+                        }
+                    }.getOrNull()
+                } ?: withContext(Dispatchers.Default) {
+                    // 离屏渲染失败时退回手绘版，至少能存出图，不让用户看到闪退
+                    runCatching { CardImageExporter.renderMeetup(context, meetup, photos) }.getOrNull()
+                }
+                if (bitmap == null) {
+                    photos.forEach { it.recycle() }
+                    android.widget.Toast.makeText(
+                        context, "生成图片失败，请重试", android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return@launch
                 }
                 val saved = withContext(Dispatchers.IO) {
                     CardImageExporter.saveToGallery(
