@@ -100,7 +100,8 @@ internal fun MoodsContent(
     var month by remember { mutableStateOf(now.get(Calendar.MONTH)) }
     var editingDate by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(year, month) { onLoadMonth(year, month) }
+    // Calendar.MONTH 是 0 基，接口与后端 LocalDate.of 都要 1 基，这里必须 +1
+    LaunchedEffect(year, month) { onLoadMonth(year, month + 1) }
 
     val mine = remember(state.moods, currentUserId) {
         state.moods.filter { it.userId == currentUserId }.associateBy { it.moodDate }

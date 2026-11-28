@@ -24,8 +24,9 @@ abstract class BaseCardWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         appWidgetIds.forEach { id ->
-            appWidgetManager.updateAppWidget(id, WidgetRefresher.buildViews(context, this, type, id))
+            appWidgetManager.updateAppWidget(id, WidgetRefresher.buildViews(context, type, id))
         }
+        WidgetRefresh.refreshNow(context, type)
     }
 
     /** 桌面拉伸/缩放时系统会回调这里，按新的宽高重画。 */
@@ -38,7 +39,7 @@ abstract class BaseCardWidgetProvider : AppWidgetProvider() {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
         appWidgetManager.updateAppWidget(
             appWidgetId,
-            WidgetRefresher.buildViews(context, this, type, appWidgetId, newOptions)
+            WidgetRefresher.buildViews(context, type, appWidgetId, newOptions)
         )
     }
 
@@ -55,11 +56,10 @@ class DiaryWidgetProvider : BaseCardWidgetProvider() {
     override val type = WidgetType.Diary
 }
 
-/** 统一构造 RemoteViews：整块点击打开 App 的「日记」页。 */
+/** 统一构造 RemoteViews：整块点击打开 App 对应的「发现」子页面（纪念日 / 美食日记）。 */
 object WidgetRefresher {
     fun buildViews(
         context: Context,
-        provider: BaseCardWidgetProvider,
         type: WidgetType,
         appWidgetId: Int,
         options: Bundle? = null
@@ -77,10 +77,9 @@ object WidgetRefresher {
             WidgetLayouts.ROOT_ID,
             card.title
         )
-        views.setOnClickPendingIntent(
-            WidgetLayouts.ROOT_ID,
-            WidgetIntents.openApp(context, type)
-        )
+        val clickIntent = WidgetIntents.openApp(context, type)
+        views.setOnClickPendingIntent(WidgetLayouts.ROOT_ID, clickIntent)
+        views.setOnClickPendingIntent(WidgetLayouts.IMAGE_ID, clickIntent)
         return views
     }
 
@@ -100,6 +99,13 @@ object WidgetRefresher {
         return w to h
     }
 
+    /** 立即刷新指定 appWidgetId（用于配置页完成或固定小组件回调，避免桌面尚未将其纳入 getAppWidgetIds）。 */
+    fun refreshOne(context: Context, type: WidgetType, appWidgetId: Int) {
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
+        val manager = AppWidgetManager.getInstance(context)
+        manager.updateAppWidget(appWidgetId, buildViews(context, type, appWidgetId))
+    }
+
     /** 刷新所有已添加的本类 widget（App 内数据变化 / 用户切换卡片时调用）。 */
     fun refreshAll(context: Context, type: WidgetType) {
         val manager = AppWidgetManager.getInstance(context)
@@ -109,11 +115,7 @@ object WidgetRefresher {
         }
         val ids = manager.getAppWidgetIds(ComponentName(context, cls))
         ids.forEach { id ->
-            val provider = when (type) {
-                WidgetType.Anniversary -> AnniversaryWidgetProvider()
-                WidgetType.Diary -> DiaryWidgetProvider()
-            }
-            manager.updateAppWidget(id, buildViews(context, provider, type, id))
+            manager.updateAppWidget(id, buildViews(context, type, id))
         }
     }
 }

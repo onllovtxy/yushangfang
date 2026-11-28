@@ -59,6 +59,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.xixikitchen.jetpack.WidgetNavigationTarget
 import com.xixikitchen.jetpack.ui.components.CustomSnackbar
 import com.xixikitchen.jetpack.ui.components.ErrorGlassDialog
 import com.xixikitchen.jetpack.ui.designsystem.motion.AppDuration
@@ -73,6 +74,8 @@ import com.xixikitchen.jetpack.ui.designsystem.theme.ThemeStore
 import com.xixikitchen.jetpack.ui.designsystem.theme.glassConvex
 import com.xixikitchen.jetpack.ui.designsystem.theme.resolveTheme
 import com.xixikitchen.jetpack.ui.screens.DiscoverScreen
+import com.xixikitchen.jetpack.ui.screens.DiscoverSubTab
+import com.xixikitchen.jetpack.ui.screens.DiscoverSubTabRequest
 import com.xixikitchen.jetpack.ui.screens.KitchenScreen
 import com.xixikitchen.jetpack.ui.screens.LoginScreen
 import com.xixikitchen.jetpack.ui.screens.MeetupDiaryScreen
@@ -84,12 +87,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun XixiKitchenApp(
     vm: KitchenViewModel,
-    widgetRoute: StateFlow<String?> = MutableStateFlow(null),
-    onWidgetRouteConsumed: () -> Unit = {},
+    widgetTarget: StateFlow<WidgetNavigationTarget?> = MutableStateFlow(null),
+    onWidgetTargetConsumed: (Long) -> Unit = {},
     discoverVm: DiscoverViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsState()
-    val pendingRoute by widgetRoute.collectAsState()
+    val pendingTarget by widgetTarget.collectAsState()
     val discoverState by discoverVm.state.collectAsState()
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -142,17 +145,26 @@ fun XixiKitchenApp(
                 )
             } else {
                 val nav = rememberNavController()
-                // 桌面 widget 点击 → 跳到对应顶层页；处理完清空，避免重复触发
-                LaunchedEffect(pendingRoute, state.isLoggedIn) {
-                    val target = pendingRoute ?: return@LaunchedEffect
-                    if (state.isLoggedIn) {
-                        if (target in listOf("kitchen", "orders", "meetupDiary", "discover", "mine")) {
-                            nav.navigateToTopLevel(target)
-                        }
-                        onWidgetRouteConsumed()
-                    }
-                }
+                var pendingDiscoverSubTab by remember { mutableStateOf<DiscoverSubTabRequest?>(null) }
                 val backStack by nav.currentBackStackEntryAsState()
+                val isNavReady = backStack != null
+                // 桌面 widget 点击 → 待 NavHost 就绪后跳到对应顶层页与子标签；处理完清空，避免重复触发
+                LaunchedEffect(pendingTarget, state.isLoggedIn, isNavReady) {
+                    val target = pendingTarget ?: return@LaunchedEffect
+                    if (!state.isLoggedIn || !isNavReady) return@LaunchedEffect
+                    if (target.route == "discover") {
+                        DiscoverSubTab.fromKey(target.subTab)?.let { tab ->
+                            pendingDiscoverSubTab = DiscoverSubTabRequest(
+                                tab = tab,
+                                requestId = target.requestId
+                            )
+                        }
+                    }
+                    if (target.route in listOf("kitchen", "orders", "meetupDiary", "discover", "mine")) {
+                        nav.navigateToTopLevel(target.route)
+                    }
+                    onWidgetTargetConsumed(target.requestId)
+                }
                 val currentRoute = backStack?.destination?.route ?: "kitchen"
                 val showBottomBar = currentRoute in listOf("kitchen", "orders", "meetupDiary", "discover", "mine")
                 Scaffold(
@@ -220,7 +232,13 @@ fun XixiKitchenApp(
                                         currentSpace = state.coupleSpace,
                                         allSpaces = state.allCoupleSpaces,
                                         onSelectSpace = vm::selectCoupleSpace,
-                                        fabSignal = discoverFabSignal
+                                        fabSignal = discoverFabSignal,
+                                        pendingSubTab = pendingDiscoverSubTab,
+                                        onPendingSubTabConsumed = { reqId ->
+                                            if (pendingDiscoverSubTab?.requestId == reqId) {
+                                                pendingDiscoverSubTab = null
+                                            }
+                                        }
                                     )
                                 }
                             }

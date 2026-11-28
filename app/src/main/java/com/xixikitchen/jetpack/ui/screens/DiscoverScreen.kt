@@ -98,11 +98,21 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-private enum class DiscoverSubTab(val label: String) {
-    Announcements("公告栏"),
-    Anniversaries("纪念日"),
-    Diary("美食日记")
+enum class DiscoverSubTab(val key: String, val label: String) {
+    Announcements("announcements", "公告栏"),
+    Anniversaries("anniversaries", "纪念日"),
+    Diary("diary", "美食日记");
+
+    companion object {
+        fun fromKey(key: String?): DiscoverSubTab? =
+            entries.firstOrNull { it.key == key }
+    }
 }
+
+data class DiscoverSubTabRequest(
+    val tab: DiscoverSubTab,
+    val requestId: Long
+)
 
 private data class TicketCreatorDraft(
     val rawBitmap: Bitmap,
@@ -119,12 +129,21 @@ fun DiscoverScreen(
     currentSpace: CoupleSpace? = null,
     allSpaces: List<CoupleSpace> = emptyList(),
     onSelectSpace: (Long) -> Unit = {},
-    fabSignal: Int = 0
+    fabSignal: Int = 0,
+    pendingSubTab: DiscoverSubTabRequest? = null,
+    onPendingSubTabConsumed: (Long) -> Unit = {}
 ) {
     val tokens = LocalGlassTokens.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var subTab by rememberSaveable { mutableStateOf(DiscoverSubTab.Announcements) }
+    var subTab by rememberSaveable {
+        mutableStateOf(pendingSubTab?.tab ?: DiscoverSubTab.Announcements)
+    }
+    LaunchedEffect(pendingSubTab) {
+        val req = pendingSubTab ?: return@LaunchedEffect
+        subTab = req.tab
+        onPendingSubTabConsumed(req.requestId)
+    }
     val (isPullRefreshing, startPullRefresh) = rememberPullRefreshState(state.loading)
 
     var showCreateAnniversary by remember { mutableStateOf(false) }

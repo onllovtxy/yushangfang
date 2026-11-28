@@ -26,20 +26,12 @@ class WidgetPinResultReceiver : BroadcastReceiver() {
 
         val manager = AppWidgetManager.getInstance(context)
         val provider = ComponentName(context, WidgetPinner.providerClass(type))
-        manager.updateAppWidget(
-            newId,
-            WidgetRefresher.buildViews(
-                context,
-                when (type) {
-                    WidgetType.Anniversary -> AnniversaryWidgetProvider()
-                    WidgetType.Diary -> DiaryWidgetProvider()
-                },
-                type,
-                newId
-            )
-        )
+        WidgetRefresher.refreshOne(context, type, newId)
         // 顺带找一下桌面上的其它同类 widget，让它们也拿到最新数据
         WidgetRefresher.refreshAll(context, type)
+        if (type == WidgetType.Diary) {
+            WidgetRefresh.ensureDiaryImageCached(context, itemId)
+        }
         manager.getAppWidgetIds(provider) // 触发一次系统查询，保证 provider 已注册
     }
 }

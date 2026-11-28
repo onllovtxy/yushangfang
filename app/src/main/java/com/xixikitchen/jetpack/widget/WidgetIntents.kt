@@ -5,10 +5,12 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import com.xixikitchen.jetpack.MainActivity
 import com.xixikitchen.jetpack.R
+import com.xixikitchen.jetpack.ui.screens.DiscoverSubTab
 
 object WidgetLayouts {
     val layoutAnniversary = R.layout.widget_card_anniversary
@@ -28,26 +30,36 @@ object WidgetIntents {
     const val ACTION_OPEN = "com.xixikitchen.jetpack.OPEN_FROM_WIDGET"
 
     fun openApp(context: Context, type: WidgetType): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            // 不能用 ACTION_MAIN + CATEGORY_LAUNCHER：系统会当成"回到原任务"，
-            // App 已在后台时不触发 onNewIntent，extras 直接丢失，于是不跳转。
-            action = ACTION_OPEN
-            putExtra(MainActivity.EXTRA_ROUTE, routeFor(type))
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
+        val intent = createOpenIntent(context, type)
         return PendingIntent.getActivity(
             context,
-            // 每个 widget 类型固定 requestCode，配合 UPDATE_CURRENT 刷新 extras
+            // 每个 widget 类型固定 requestCode，配合独立 data URI 与 UPDATE_CURRENT 刷新 extras
             type.ordinal + 1000,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
 
-    /** 票根在「发现」页的「美食日记」，纪念日也在「发现」页。 */
+    fun createOpenIntent(context: Context, type: WidgetType): Intent =
+        Intent(context, MainActivity::class.java).apply {
+            // 不能用 ACTION_MAIN + CATEGORY_LAUNCHER：系统会当成"回到原任务"，
+            // App 已在后台时不触发 onNewIntent，extras 直接丢失，于是不跳转。
+            action = ACTION_OPEN
+            data = Uri.parse("${MainActivity.WIDGET_URI_SCHEME}://${MainActivity.WIDGET_URI_HOST}/${type.key}")
+            putExtra(MainActivity.EXTRA_ROUTE, routeFor(type))
+            putExtra(MainActivity.EXTRA_SUB_TAB, subTabFor(type))
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+
+    /** 纪念日与美食票根均位于「发现」页下对应子标签。 */
     private fun routeFor(type: WidgetType): String = "discover"
+
+    private fun subTabFor(type: WidgetType): String = when (type) {
+        WidgetType.Anniversary -> DiscoverSubTab.Anniversaries.key
+        WidgetType.Diary -> DiscoverSubTab.Diary.key
+    }
 }
 
 /**
@@ -72,6 +84,8 @@ object WidgetPinner {
             return false
         }
         val provider = ComponentName(context, providerClass(type))
+        val callbackFlags = PendingIntent.FLAG_UPDATE_CURRENT or
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
         val callback = PendingIntent.getBroadcast(
             context,
             type.ordinal + 2000,
@@ -80,7 +94,7 @@ object WidgetPinner {
                 putExtra(EXTRA_TYPE, type.key)
                 putExtra(EXTRA_ITEM_ID, itemId)
             },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            callbackFlags
         )
         val success = manager.requestPinAppWidget(provider, null, callback)
         if (!success) {

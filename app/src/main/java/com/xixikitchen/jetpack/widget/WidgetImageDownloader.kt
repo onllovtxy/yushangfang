@@ -1,6 +1,7 @@
 package com.xixikitchen.jetpack.widget
 
 import android.content.Context
+import com.xixikitchen.jetpack.ui.components.realImageUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -9,18 +10,21 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * 桌面 widget 不能联网，所以「长按 → 添加到桌面」时先把封面图下载到 filesDir 缓存，
- * 之后 widget 刷新直接读文件。
+ * 桌面 widget 不能联网，所以刷新或选卡时先把封面图下载到 filesDir 缓存，
+ * 之后 widget 渲染直接读文件。
  */
 object WidgetImageDownloader {
 
     suspend fun cacheImages(context: Context, type: WidgetType, urls: List<String?>) =
         withContext(Dispatchers.IO) {
-            urls.filterNotNull().filter { it.isNotBlank() }.distinct().forEach { url ->
-                val target = WidgetImageCache.file(context, type, url) ?: return@forEach
-                if (target.exists() && target.length() > 0) return@forEach
-                runCatching { download(url, target) }
-            }
+            urls.mapNotNull { realImageUrl(it) }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .forEach { resolvedUrl ->
+                    val target = WidgetImageCache.file(context, type, resolvedUrl) ?: return@forEach
+                    if (target.exists() && target.length() > 0) return@forEach
+                    runCatching { download(resolvedUrl, target) }
+                }
         }
 
     private fun download(url: String, target: File) {

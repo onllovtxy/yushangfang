@@ -204,12 +204,14 @@ class DiscoverViewModel @Inject constructor(
     }
 
     fun saveMood(date: String, moodCode: String, note: String, onSuccess: () -> Unit = {}) = runAction {
-        repo.saveMood(token(), CoupleMoodSaveRequest(moodDate = date, moodCode = moodCode, note = note))
-        val y = _state.value.moodYear
-        val m = _state.value.moodMonth
-        if (y > 0 && m > 0) {
-            val list = repo.moods(token(), y, m)
-            _state.update { it.copy(moods = list) }
+        val saved = repo.saveMood(
+            token(),
+            CoupleMoodSaveRequest(moodDate = date, moodCode = moodCode, note = note)
+        )
+        _state.update { current ->
+            // 乐观更新：把保存返回的 mood 塞进列表，避免重新拉取覆盖后丢失
+            val merged = (current.moods.filter { it.moodDate != date } + saved).sortedBy { it.moodDate }
+            current.copy(moods = merged)
         }
         onSuccess()
         notify("心情已记录")
@@ -281,6 +283,9 @@ class DiscoverViewModel @Inject constructor(
             )
         }
         onSuccess()
+        runCatching {
+            WidgetPublish.publishDiaries(appContext, _state.value.diaryEntries, downloadImages = false)
+        }
         notify("票根已更新")
     }
 
