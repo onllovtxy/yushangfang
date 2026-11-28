@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xixikitchen.jetpack.data.CoupleMood
 import com.xixikitchen.jetpack.ui.DiscoverUiState
+import com.xixikitchen.jetpack.ui.noRippleCombinedPressable
 import com.xixikitchen.jetpack.ui.noRipplePressable
 import com.xixikitchen.jetpack.ui.designsystem.theme.GlassAccent
 import com.xixikitchen.jetpack.ui.designsystem.theme.LocalGlassTokens
@@ -99,6 +100,8 @@ internal fun MoodsContent(
 ) {
     val tokens = LocalGlassTokens.current
     var editingDate by remember { mutableStateOf<String?>(null) }
+    // 点已有记录时打开只读查看弹窗；自己那条可以再进编辑
+    var viewingMood by remember { mutableStateOf<MoodViewTarget?>(null) }
 
     // month 由外部按 1 基传入；接口和后端 LocalDate.of 也都要 1 基，直接透传
     LaunchedEffect(year, month) { onLoadMonth(year, month) }
@@ -112,6 +115,31 @@ internal fun MoodsContent(
         // 只取伴侣的记录：不能写成 "userId != 我"，否则同空间的第三个人也会混进来。
         if (partnerId == null) emptyMap()
         else state.moods.filter { it.userId == partnerId }.associateBy { it.moodDate }
+    }
+
+    /**
+     * 方格/圆格的点击规则：
+     * - 点方格（我）：没记录 → 新建；有记录 → 查看（弹窗里再进编辑）
+     * - 点圆格（TA）：有记录 → 只读查看；没记录 → 提示要先绑定伴侣
+     * - 长按方格且有记录 → 直接编辑自己的
+     * 对方的记录任何时候都不给编辑入口。
+     */
+    val onMoodCellAction: (MoodCellAction) -> Unit = { action ->
+        when (action) {
+            is MoodCellAction.ClickMine -> {
+                if (mine[action.date] == null) editingDate = action.date
+                else viewingMood = MoodViewTarget(action.date, mine.getValue(action.date), isMine = true)
+            }
+            is MoodCellAction.ClickPartner -> {
+                theirs[action.date]?.let {
+                    viewingMood = MoodViewTarget(action.date, it, isMine = false)
+                }
+                // 没有记录时什么都不弹：对方那天没写，属于正常情况
+            }
+            is MoodCellAction.LongPressMine -> {
+                if (mine[action.date] != null) editingDate = action.date
+            }
+        }
     }
 
     LazyColumn(
@@ -213,12 +241,28 @@ internal fun MoodsContent(
                 month = month,
                 mine = mine,
                 theirs = theirs,
-                onPickDate = { editingDate = it }
+                hasPartner = partnerId != null,
+                onCellAction = onMoodCellAction
             )
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
 
+    // 查看 / 编辑弹窗
+    viewingMood?.let { target ->
+        MoodViewDialog(
+            mood = target.mood,
+            isMine = target.isMine,
+            date = target.date,
+            onDismiss = { viewingMood = null },
+            onEdit = {
+                viewingMood = null
+                editingDate = target.date
+            }
+        )
+    }
+
+    // 编辑弹窗（只能编辑自己的）
     editingDate?.let { date ->
         val existingMine = mine[date]
         MoodEditorDialog(
@@ -240,7 +284,8 @@ private fun MoodMonthGrid(
     month: Int,
     mine: Map<String, CoupleMood>,
     theirs: Map<String, CoupleMood>,
-    onPickDate: (String) -> Unit
+    hasPartner: Boolean,
+    onCellAction: (MoodCellAction) -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     val today = remember {
@@ -287,7 +332,10 @@ private fun MoodMonthGrid(
                                 isToday = dateKey == today,
                                 myMood = mine[dateKey],
                                 partnerMood = theirs[dateKey],
-                                onClick = { onPickDate(dateKey) }
+                                hasPartner = hasPartner,
+                                onMineClick = { onCellAction(MoodCellAction.ClickMine(dateKey)) },
+                                onMineLongClick = { onCellAction(MoodCellAction.LongPressMine(dateKey)) },
+                                onPartnerClick = { onCellAction(MoodCellAction.ClickPartner(dateKey)) }
                             )
                         }
                     }
@@ -303,13 +351,15 @@ private fun MoodDayCell(
     isToday: Boolean,
     myMood: CoupleMood?,
     partnerMood: CoupleMood?,
-    onClick: () -> Unit
+    hasPartner: Boolean,
+    onMineClick: () -> Unit,
+    onMineLongClick: () -> Unit,
+    onPartnerClick: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .noRipplePressable(pressedScale = 0.94f, onClick = onClick)
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -322,35 +372,70 @@ private fun MoodDayCell(
             color = if (isToday) GlassAccent.primary else tokens.textSecondary
         )
 
-        // 上：我（方形）
+        // 上：我（方形）。点=新建/查看，长按=编辑
         MoodFaceBadge(
             mood = myMood,
             shape = MoodShape.SQUARE,
-            sizeDp = 24
+            sizeDp = 24,
+            onClick = onMineClick,
+            onLongClick = onMineLongClick
         )
-        // 下：TA（圆形）
+        // 下：TA（圆形）。点=只读查看，没有编辑入口
         MoodFaceBadge(
             mood = partnerMood,
             shape = MoodShape.CIRCLE,
-            sizeDp = 24
+            sizeDp = 24,
+            onClick = onPartnerClick,
+            onLongClick = null,
+            enabled = hasPartner
         )
     }
 }
 
 private enum class MoodShape { SQUARE, CIRCLE }
 
+/** 日历格子上可以触发的动作。 */
+internal sealed interface MoodCellAction {
+    data class ClickMine(val date: String) : MoodCellAction
+    data class ClickPartner(val date: String) : MoodCellAction
+    data class LongPressMine(val date: String) : MoodCellAction
+}
+
+/** 查看弹窗要展示的某一条心情。 */
+private data class MoodViewTarget(
+    val date: String,
+    val mood: CoupleMood,
+    val isMine: Boolean
+)
+
 @Composable
 private fun MoodFaceBadge(
     mood: CoupleMood?,
     shape: MoodShape,
-    sizeDp: Int
+    sizeDp: Int,
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    enabled: Boolean = true
 ) {
     val face = MoodFace.fromCode(mood?.moodCode)
     val bg = Color(face.color).copy(alpha = if (mood == null) 0.06f else 0.22f)
     val clipShape = if (shape == MoodShape.SQUARE) RoundedCornerShape(6.dp) else CircleShape
+    // 没有内容的空格子也保持可点，方便直接点它来新建（方框）或看提示（圆格）
+    val interactive = enabled && onClick != null
     Box(
         modifier = Modifier
             .size(sizeDp.dp)
+            .then(
+                if (interactive) {
+                    Modifier.noRippleCombinedPressable(
+                        pressedScale = 0.9f,
+                        onClick = onClick!!,
+                        onLongClick = onLongClick
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .clip(clipShape)
             .background(bg)
             .border(1.dp, Color(face.color).copy(alpha = if (mood == null) 0.15f else 0.5f), clipShape),
@@ -360,6 +445,89 @@ private fun MoodFaceBadge(
             Text(text = face.emoji, fontSize = (sizeDp * 0.58f).sp)
         }
     }
+}
+
+/** 只读查看某条心情。自己的那条给「编辑」入口，对方的只给关闭。 */
+@Composable
+private fun MoodViewDialog(
+    mood: CoupleMood,
+    isMine: Boolean,
+    date: String,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit
+) {
+    val tokens = LocalGlassTokens.current
+    val face = MoodFace.fromCode(mood.moodCode)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier
+            .width(320.dp)
+            .glassConvexOverlay(24.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.Transparent,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = if (isMine) "我的心情" else "${mood.authorName ?: "TA"} 的心情",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = GlassAccent.primaryDark
+                )
+                Text(
+                    date,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tokens.textSecondary
+                )
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(face.emoji, fontSize = 52.sp, textAlign = TextAlign.Center)
+                Text(
+                    text = face.label,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = Color(face.color)
+                )
+                if (mood.note.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .glassConcave(16.dp)
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = mood.note,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = tokens.textPrimary
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (isMine) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .noRipplePressable(pressedScale = 0.97f, onClick = onEdit)
+                        .glassConvexOverlay(16.dp)
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("编辑", color = GlassAccent.primaryDark, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭", color = tokens.textSecondary)
+            }
+        }
+    )
 }
 
 @Composable

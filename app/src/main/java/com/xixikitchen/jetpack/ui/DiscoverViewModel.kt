@@ -218,6 +218,15 @@ class DiscoverViewModel @Inject constructor(
         _state.update {
             it.copy(moods = list, moodYear = year, moodMonth = month, moodsLoaded = true)
         }
+        // 空间接口没拿到伴侣时（旧后端 / 临时失败），从心情数据里反推：
+        // 同一个空间里除我以外的那个 userId 就是伴侣。
+        if (_state.value.partnerUserId == null) {
+            val me = _state.value.currentUser?.id
+            val inferred = list.map { it.userId }.distinct().firstOrNull { it != me && it > 0 }
+            if (inferred != null) {
+                _state.update { it.copy(partnerUserId = inferred) }
+            }
+        }
     }
 
     fun saveMood(date: String, moodCode: String, note: String, onSuccess: () -> Unit = {}) = runAction {
