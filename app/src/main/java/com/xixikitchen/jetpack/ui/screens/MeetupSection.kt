@@ -1,8 +1,10 @@
 package com.xixikitchen.jetpack.ui.screens
 
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -55,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -112,10 +115,12 @@ internal fun MeetupsContent(
  * 严格遵循手稿的「上文字 · 分割线 · 下照片（双图拍立得并排 / 单图大图）」见面纪念卡片。
  */
 @Composable
-private fun MeetupSketchCard(
+internal fun MeetupSketchCard(
     item: CoupleMeetup,
     onLongClick: () -> Unit,
-    onPhotoClick: (imageUrl: String, caption: String?) -> Unit
+    onPhotoClick: (imageUrl: String, caption: String?) -> Unit,
+    // 导出图片时传入已下载好的照片，避免离屏渲染期间 AsyncImage 还没加载完导致空白
+    previewBitmaps: List<Bitmap> = emptyList()
 ) {
     val tokens = LocalGlassTokens.current
     val photos = remember(item.photoUrl1, item.photoUrl2) {
@@ -255,20 +260,22 @@ private fun MeetupSketchCard(
                         badge = null,
                         aspectRatio = 4f / 3f,
                         onClick = { onPhotoClick(photos[0], photoCaption) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        previewBitmap = previewBitmaps.getOrNull(0)
                     )
                 } else {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        photos.take(2).forEach { url ->
+                        photos.take(2).forEachIndexed { index, url ->
                             MeetupPolaroidPhoto(
                                 imageUrl = url,
                                 badge = null,
                                 aspectRatio = 3f / 4f,
                                 onClick = { onPhotoClick(url, photoCaption) },
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                previewBitmap = previewBitmaps.getOrNull(index)
                             )
                         }
                     }
@@ -284,11 +291,13 @@ private fun MeetupPolaroidPhoto(
     badge: String?,
     aspectRatio: Float,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    previewBitmap: Bitmap? = null
 ) {
     val resolvedUrl = realImageUrl(imageUrl) ?: imageUrl
     val frameShape = RoundedCornerShape(16.dp)
     val innerShape = RoundedCornerShape(12.dp)
+    val bitmapImage = remember(previewBitmap) { previewBitmap?.asImageBitmap() }
 
     Box(
         modifier = modifier
@@ -305,12 +314,21 @@ private fun MeetupPolaroidPhoto(
                 .clip(innerShape)
                 .background(GlassAccent.wash)
         ) {
-            AsyncImage(
-                model = resolvedUrl,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
+            if (bitmapImage != null) {
+                Image(
+                    bitmap = bitmapImage,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                AsyncImage(
+                    model = resolvedUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
             if (!badge.isNullOrBlank()) {
                 Box(
                     modifier = Modifier

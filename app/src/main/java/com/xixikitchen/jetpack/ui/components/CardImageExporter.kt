@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.text.TextPaint
+import android.util.Log
 import com.xixikitchen.jetpack.data.CoupleMeetup
 import com.xixikitchen.jetpack.data.FoodDiary
 import java.io.File
@@ -281,11 +282,19 @@ object CardImageExporter {
 
     // ─────────────────────── 保存到相册 ───────────────────────
 
+    /**
+     * 保存到相册。失败时把原因写进日志，避免只看到一句"保存失败"却查不到为什么。
+     *
+     * API 29+ 走 MediaStore，不需要任何存储权限；24~28 需要 WRITE_EXTERNAL_STORAGE，
+     * 调用方应当先确认已授予（见 [needsLegacyStoragePermission]）。
+     */
     fun saveToGallery(context: Context, bitmap: Bitmap, displayName: String): Boolean {
-        return runCatching {
+        return try {
             val resolver = context.contentResolver
+            // 文件名里不能带 / : * ? " < > | 等字符，否则 MediaStore 会插入失败
+            val safeName = displayName.replace(Regex("[/\\\\:*?\"<>|]"), "_").take(80)
             val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "$displayName.png")
+                put(MediaStore.Images.Media.DISPLAY_NAME, "$safeName.png")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/png")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     put(
@@ -296,17 +305,29 @@ object CardImageExporter {
                 }
             }
             val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: return false
-            resolver.openOutputStream(uri)?.use { out ->
+            if (uri == null) {
+                Log.w("CardImageExporter", "insert 返回 null，可能是 MediaStore 不可用")
+                return false
+            }
+            val wrote = resolver.openOutputStream(uri)?.use { out ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            } ?: return false
+                out.flush()
+                true
+            } ?: false
+            if (!wrote) {
+                Log.w("CardImageExporter", "写入输出流失败: $uri")
+                runCatching { resolver.delete(uri, null, null) }
+                return false
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                values.clear()
-                values.put(MediaStore.Images.Media.IS_PENDING, 0)
-                resolver.update(uri, values, null, null)
+                val done = ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }
+                resolver.update(uri, done, null, null)
             }
             true
-        }.getOrDefault(false)
+        } catch (e: Exception) {
+            Log.w("CardImageExporter", "保存到相册失败", e)
+            false
+        }
     }
 
     /** API 24~28 需要写外部存储权限；29+ 走 MediaStore 不需要。 */

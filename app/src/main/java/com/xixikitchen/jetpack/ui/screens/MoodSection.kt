@@ -191,37 +191,6 @@ internal fun MoodsContent(
                     }
                 }
 
-                // 图例：方的是我、圆的是 TA
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(14.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(GlassAccent.primary.copy(alpha = 0.25f))
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        "方的是我", style = MaterialTheme.typography.labelSmall,
-                        color = tokens.textSecondary
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(14.dp)
-                            .clip(CircleShape)
-                            .background(GlassAccent.primary.copy(alpha = 0.25f))
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        "圆的是 TA", style = MaterialTheme.typography.labelSmall,
-                        color = tokens.textSecondary
-                    )
-                }
-
                 if (partnerId == null) {
                     Text(
                         text = "还没有绑定伴侣，绑定后这里会显示 TA 的心情",
@@ -248,17 +217,13 @@ internal fun MoodsContent(
         item { Spacer(Modifier.height(24.dp)) }
     }
 
-    // 查看 / 编辑弹窗
+    // 查看弹窗：只展示，点外面关闭
     viewingMood?.let { target ->
         MoodViewDialog(
             mood = target.mood,
             isMine = target.isMine,
             date = target.date,
-            onDismiss = { viewingMood = null },
-            onEdit = {
-                viewingMood = null
-                editingDate = target.date
-            }
+            onDismiss = { viewingMood = null }
         )
     }
 
@@ -447,14 +412,13 @@ private fun MoodFaceBadge(
     }
 }
 
-/** 只读查看某条心情。自己的那条给「编辑」入口，对方的只给关闭。 */
+/** 只读查看某条心情：纯展示，没有任何按钮，点卡片外面关掉。 */
 @Composable
 private fun MoodViewDialog(
     mood: CoupleMood,
     isMine: Boolean,
     date: String,
-    onDismiss: () -> Unit,
-    onEdit: () -> Unit
+    onDismiss: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
     val face = MoodFace.fromCode(mood.moodCode)
@@ -508,25 +472,8 @@ private fun MoodViewDialog(
                 }
             }
         },
-        confirmButton = {
-            if (isMine) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .noRipplePressable(pressedScale = 0.97f, onClick = onEdit)
-                        .glassConvexOverlay(16.dp)
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("编辑", color = GlassAccent.primaryDark, fontWeight = FontWeight.ExtraBold)
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = tokens.textSecondary)
-            }
-        }
+        confirmButton = {},
+        dismissButton = {}
     )
 }
 

@@ -71,6 +71,7 @@ import com.xixikitchen.jetpack.data.FoodDiaryComment
 import com.xixikitchen.jetpack.ui.DiscoverUiState
 import com.xixikitchen.jetpack.ui.DiscoverViewModel
 import com.xixikitchen.jetpack.ui.components.CardImageExporter
+import com.xixikitchen.jetpack.ui.components.ComposeCardRenderer
 import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
 import com.xixikitchen.jetpack.ui.components.CropAspectRatio
 import com.xixikitchen.jetpack.ui.components.ImageCropperDialog
@@ -165,8 +166,13 @@ fun DiscoverScreen(
         { diary ->
             scope.launch {
                 val photo = withContext(Dispatchers.IO) { loadCardPhoto(diary.imageUrl) }
-                val bitmap = withContext(Dispatchers.Default) {
-                    CardImageExporter.renderDiary(context, diary, photo)
+                // 用界面上那张卡片的同一套 Compose 渲染导出，保证和所见一致
+                val bitmap = withContext(Dispatchers.Main) {
+                    ComposeCardRenderer.renderToBitmap(context, 1080) {
+                        Box(Modifier.background(androidx.compose.ui.graphics.Color.White)) {
+                            TicketStubCard(diary = diary, previewBitmap = photo)
+                        }
+                    }
                 }
                 val saved = withContext(Dispatchers.IO) {
                     CardImageExporter.saveToGallery(

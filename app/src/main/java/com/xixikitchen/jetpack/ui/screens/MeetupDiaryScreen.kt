@@ -50,6 +50,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.rememberCoroutineScope
 import com.xixikitchen.jetpack.ui.components.CardImageExporter
+import com.xixikitchen.jetpack.ui.components.ComposeCardRenderer
 import com.xixikitchen.jetpack.ui.components.ConfirmDeleteDialog
 import com.xixikitchen.jetpack.ui.components.PhotoLightboxDialog
 import com.xixikitchen.jetpack.ui.components.SuperAdminSpaceBanner
@@ -97,8 +98,16 @@ fun MeetupDiaryScreen(
                         .filter { it.isNotBlank() }
                         .mapNotNull { loadBitmap(it) }
                 }
-                val bitmap = withContext(Dispatchers.Default) {
-                    CardImageExporter.renderMeetup(context, meetup, photos)
+                // 复用界面上那张卡片的同一套 Compose，导出结果和所见一致
+                val bitmap = withContext(Dispatchers.Main) {
+                    ComposeCardRenderer.renderToBitmap(context, 1080) {
+                        MeetupSketchCard(
+                            item = meetup,
+                            onLongClick = {},
+                            onPhotoClick = { _, _ -> },
+                            previewBitmaps = photos
+                        )
+                    }
                 }
                 val saved = withContext(Dispatchers.IO) {
                     CardImageExporter.saveToGallery(
